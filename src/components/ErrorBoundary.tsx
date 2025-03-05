@@ -45,31 +45,35 @@ class ErrorBoundary extends Component<Props, State> {
         return this.props.fallback;
       }
 
-      return (
-        <div className="container mx-auto py-8 px-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-red-500">Something went wrong</CardTitle>
-              <CardDescription>
-                An unexpected error occurred in the application
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-md overflow-auto">
-                <p className="font-mono text-sm">
-                  {this.state.error?.message || 'Unknown error'}
-                </p>
-              </div>
-            </CardContent>
-            <CardFooter>
-              <Button onClick={this.handleReset}>Try Again</Button>
-            </CardFooter>
-          </Card>
-        </div>
-      );
+      return this.renderErrorUI();
     }
 
     return this.props.children;
+  }
+
+  renderErrorUI() {
+    return (
+      <div className="py-8 px-4">
+        <Card className="border shadow-sm w-full">
+          <CardHeader>
+            <CardTitle className="text-red-500">Something went wrong</CardTitle>
+            <CardDescription>
+              An unexpected error occurred in the application
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-md overflow-auto">
+              <p className="font-mono text-sm">
+                {this.state.error?.message || 'Unknown error'}
+              </p>
+            </div>
+          </CardContent>
+          <CardFooter>
+            <Button onClick={this.handleReset}>Try Again</Button>
+          </CardFooter>
+        </Card>
+      </div>
+    );
   }
 }
 

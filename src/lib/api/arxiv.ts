@@ -1,3 +1,11 @@
+// params = {
+//   'search_query': query,
+//   'start': 0,
+//   'max_results': max_results,
+//   'sortBy': 'relevance',
+//   'sortOrder': 'descending'
+// }
+
 import { XMLParser } from 'fast-xml-parser';
 import { BaseAPIClient } from './base';
 import type { Paper } from '../db/schema/paper';

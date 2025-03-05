@@ -1,12 +1,17 @@
 /**
  * Format a number of bytes into a human-readable string
  * @param bytes Number of bytes to format
- * @returns Formatted string (e.g., "1.5 MB")
+ * @returns Formatted string (e.g., "0.1 MB" for 100KB files)
  */
 export function formatFileSize(bytes: number): string {
   if (bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
+  
+  // If file is under 1KB, show in bytes
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+  
+  // For everything else, show in MB
+  const mbSize = bytes / 1024 / 1024;
+  return `${parseFloat(mbSize.toFixed(1))} MB`;
 } 

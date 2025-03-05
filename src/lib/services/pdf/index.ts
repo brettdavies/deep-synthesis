@@ -1,7 +1,6 @@
-export type {
-  ProgressCallback,
-  DownloadQueueInterface
-} from './types';
+export * from './operations';
+export * from './types';
+export * from './cache';
 
 export {
   CHUNK_SIZE,

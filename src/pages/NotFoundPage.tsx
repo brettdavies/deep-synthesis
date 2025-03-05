@@ -1,12 +1,12 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 
 const NotFoundPage: React.FC = () => {
   return (
-    <div className="container mx-auto py-16 px-4">
-      <Card className="max-w-md mx-auto">
+    <div className="py-16 px-4 text-center">
+      <Card className="w-full">
         <CardHeader>
           <CardTitle className="text-2xl">Page Not Found</CardTitle>
           <CardDescription>

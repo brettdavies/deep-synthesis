@@ -8,6 +8,10 @@ import { ReportOperations } from '@/lib/db/operations';
 import type { Report } from '@/lib/db/schema/report';
 import ReactMarkdown from 'react-markdown';
 import { ensureHttps } from '@/lib/utils/network/url';
+import { formatDate } from '@/lib/utils/formatting/date';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AlertCircle, ArrowLeft } from 'lucide-react';
+import { Loader } from '@/components/ui/loader';
 
 const ReportPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -49,7 +53,7 @@ const ReportPage: React.FC = () => {
     // Create a blob with the report content
     const blob = new Blob([
       `# ${report.title}\n\n`,
-      `Generated on: ${new Date(report.date).toLocaleDateString()}\n\n`,
+      `Generated on: ${formatDate(report.date)}\n\n`,
       report.review || 'No review content available.',
       '\n\n## References\n\n',
       report.references.map((ref, index) => 
@@ -76,7 +80,7 @@ const ReportPage: React.FC = () => {
 
     try {
       await ReportOperations.delete(id);
-      navigate('/library');
+      navigate('/reports');
     } catch (err) {
       console.error('Error deleting report:', err);
       setError('Failed to delete report');
@@ -93,25 +97,36 @@ const ReportPage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="container mx-auto py-16">
-        <Loading size="large" message="Loading report..." />
+      <div className="pt-3 pb-6">
+        <Card className="border shadow-sm">
+          <CardContent className="py-16">
+            <div className="flex flex-col items-center justify-center min-h-[40vh]">
+              <Loader className="h-8 w-8 mb-4" />
+              <span className="text-muted-foreground">Loading report...</span>
+            </div>
+          </CardContent>
+          <CardFooter>
+            <Button variant="outline" onClick={() => navigate('/reports')}>Back to Reports</Button>
+          </CardFooter>
+        </Card>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="container mx-auto py-8">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-red-500">Error</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p>{error}</p>
+      <div className="pt-3 pb-6">
+        <Card className="border shadow-sm">
+          <CardContent className="py-8">
+            <Alert variant="destructive" className="mb-6">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+            <div className="flex justify-center">
+              <Button variant="outline" onClick={() => navigate('/reports')}>Back to Reports</Button>
+            </div>
           </CardContent>
-          <CardFooter>
-            <Button onClick={() => navigate('/library')}>Back to Library</Button>
-          </CardFooter>
         </Card>
       </div>
     );
@@ -119,16 +134,16 @@ const ReportPage: React.FC = () => {
 
   if (!report) {
     return (
-      <div className="container mx-auto py-8">
-        <Card>
-          <CardHeader>
-            <CardTitle>Report Not Found</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p>The requested report could not be found.</p>
+      <div className="pt-3 pb-6">
+        <Card className="border shadow-sm">
+          <CardContent className="py-16">
+            <div className="flex flex-col items-center justify-center min-h-[40vh]">
+              <Loader className="h-8 w-8 mb-4" />
+              <span className="text-muted-foreground">Report not found...</span>
+            </div>
           </CardContent>
           <CardFooter>
-            <Button onClick={() => navigate('/library')}>Back to Library</Button>
+            <Button variant="outline" onClick={() => navigate('/reports')}>Back to Reports</Button>
           </CardFooter>
         </Card>
       </div>
@@ -136,42 +151,55 @@ const ReportPage: React.FC = () => {
   }
 
   return (
-    <div className="container mx-auto py-8">
-      <Card>
-        <CardHeader>
-          <div className="flex justify-between items-start">
+    <div className="pt-3 pb-6">
+      <div className="flex justify-between items-center mb-6">
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          onClick={() => navigate('/reports')} 
+          className="flex items-center text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4 mr-1" />
+          Back to Reports
+        </Button>
+      </div>
+      <Card className="border shadow-sm w-full">
+        <CardHeader className="pb-4">
+          <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
             <div>
-              <CardTitle className="text-2xl">{report.title}</CardTitle>
-              <CardDescription>
-                Generated on {new Date(report.date).toLocaleDateString()} • 
-                Based on {report.references.length} papers
+              <CardTitle className="text-2xl font-bold">{report.title}</CardTitle>
+              <CardDescription className="text-muted-foreground mt-1">
+                Generated on {formatDate(report.date)} • 
+                Based on {report.references.length} paper{report.references.length !== 1 ? 's' : ''}
               </CardDescription>
             </div>
-            <div className="flex space-x-2">
-              <Button variant="outline" onClick={handleExport}>
+            <div className="flex gap-2 self-start">
+              <Button variant="outline" onClick={handleExport} size="sm">
                 Export
               </Button>
-              <Button variant="destructive" onClick={handleDelete}>
+              <Button variant="destructive" onClick={handleDelete} size="sm">
                 Delete
               </Button>
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pb-0">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="mb-4">
+            <TabsList className="mb-4 bg-muted">
               <TabsTrigger value="review">Literature Review</TabsTrigger>
-              <TabsTrigger value="references">References</TabsTrigger>
+              <TabsTrigger value="references">References ({report.references.length})</TabsTrigger>
               {report.bibtex && <TabsTrigger value="bibtex">BibTeX</TabsTrigger>}
             </TabsList>
             
-            <TabsContent value="review" className="prose prose-sm sm:prose lg:prose-lg dark:prose-invert max-w-none">
+            <TabsContent value="review" className="prose prose-sm sm:prose lg:prose-lg dark:prose-invert">
               {report.review ? (
-                <ReactMarkdown>
-                  {report.review}
-                </ReactMarkdown>
+                <div className="bg-card border rounded-md p-4 mb-4">
+                  <ReactMarkdown>
+                    {report.review}
+                  </ReactMarkdown>
+                </div>
               ) : (
-                <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-md mb-6">
+                <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-md mb-6 border border-yellow-200 dark:border-yellow-900">
                   <p className="text-yellow-800 dark:text-yellow-200">
                     This report doesn't have a review yet. Enable AI review generation in the AI Settings section on the home page.
                   </p>
@@ -180,38 +208,47 @@ const ReportPage: React.FC = () => {
             </TabsContent>
             
             <TabsContent value="references">
-              <h2 className="text-xl font-semibold mb-4">References</h2>
-              <ol className="list-decimal pl-5 space-y-4">
-                {report.references.map((ref, index) => (
-                  <li key={index} className="flex justify-between items-start">
-                    <span>{ref.text}</span>
-                    {ref.pdfUrl && (
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="ml-2 shrink-0"
-                        onClick={() => handleViewPdf(ref.pdfUrl)}
-                      >
-                        PDF
-                      </Button>
-                    )}
-                  </li>
-                ))}
-              </ol>
+              <div className="bg-card border rounded-md p-4 mb-4">
+                <h2 className="text-xl font-semibold mb-4">References</h2>
+                <ol className="list-decimal pl-5 space-y-4">
+                  {report.references.map((ref, index) => (
+                    <li key={index} className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2 pb-3 border-b last:border-0">
+                      <span className="text-sm">{ref.text}</span>
+                      {ref.pdfUrl && (
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="self-start shrink-0"
+                          onClick={() => handleViewPdf(ref.pdfUrl)}
+                        >
+                          View PDF
+                        </Button>
+                      )}
+                    </li>
+                  ))}
+                </ol>
+              </div>
             </TabsContent>
             
             {report.bibtex && (
               <TabsContent value="bibtex">
-                <h2 className="text-xl font-semibold mb-4">BibTeX</h2>
-                <pre className="bg-gray-100 dark:bg-gray-800 p-4 rounded-md overflow-x-auto whitespace-pre-wrap">
-                  {report.bibtex}
-                </pre>
+                <div className="bg-card border rounded-md p-4 mb-4">
+                  <h2 className="text-xl font-semibold mb-4">BibTeX</h2>
+                  <pre className="bg-muted p-4 rounded-md overflow-x-auto whitespace-pre-wrap text-sm font-mono">
+                    {report.bibtex}
+                  </pre>
+                </div>
               </TabsContent>
             )}
           </Tabs>
         </CardContent>
-        <CardFooter>
-          <Button onClick={() => navigate('/library')}>Back to Library</Button>
+        <CardFooter className="pt-4">
+          <div className="w-full flex justify-between">
+            <Button variant="outline" onClick={() => navigate('/reports')}>Back to Reports</Button>
+            <Button variant="secondary" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+              Back to Top
+            </Button>
+          </div>
         </CardFooter>
       </Card>
     </div>

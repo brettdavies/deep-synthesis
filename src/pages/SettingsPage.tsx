@@ -6,6 +6,10 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loading } from '@/components/ui/loading';
 import { SettingOperations } from '@/lib/db/operations';
+import { Separator } from '@/components/ui/separator';
+import { Loader } from '@/components/ui/loader';
+import { AlertCircle, ShieldCheck, Key, Save } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import toast from 'react-hot-toast';
 
 interface ApiKeys {
@@ -63,12 +67,15 @@ const SettingsPage: React.FC = () => {
         }
         setHasPinSet(true);
         setMessage('PIN verified successfully');
+        toast.success('PIN verified successfully');
       } else {
         setMessage('Incorrect PIN');
+        toast.error('Incorrect PIN');
       }
     } catch (error) {
       console.error('Error verifying PIN:', error);
       setMessage('Error verifying PIN');
+      toast.error('Error verifying PIN');
     }
   };
 
@@ -79,6 +86,7 @@ const SettingsPage: React.FC = () => {
       // Validate PIN if setting a new one
       if (pin && pin !== confirmPin) {
         setMessage('PINs do not match');
+        toast.error('PINs do not match');
         return;
       }
       
@@ -95,12 +103,11 @@ const SettingsPage: React.FC = () => {
       await SettingOperations.upsert({ provider: 'activeService', value: activeService });
       
       setMessage('Settings saved successfully');
-      
-      // Add toast notification
       toast.success("Settings saved successfully");
     } catch (error) {
       console.error('Error saving settings:', error);
       setMessage('Error saving settings');
+      toast.error('Error saving settings');
     }
   };
 
@@ -113,8 +120,15 @@ const SettingsPage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="container mx-auto py-16">
-        <Loading size="large" message="Loading settings..." />
+      <div className="pt-3 pb-6">
+        <Card className="border shadow-sm w-full">
+          <CardContent className="py-16">
+            <div className="flex flex-col items-center justify-center min-h-[40vh]">
+              <Loader className="h-8 w-8 mb-4" />
+              <span className="text-muted-foreground">Loading settings...</span>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -122,10 +136,13 @@ const SettingsPage: React.FC = () => {
   // If PIN is set and not yet entered, show PIN entry form
   if (hasPinSet && !apiKeys.openrouter && !apiKeys.openai) {
     return (
-      <div className="container mx-auto py-8">
-        <Card className="max-w-md mx-auto">
-          <CardHeader>
-            <CardTitle>Enter PIN</CardTitle>
+      <div className="pt-3 pb-6">
+        <Card className="border shadow-sm w-full">
+          <CardHeader className="pb-4">
+            <CardTitle className="flex items-center text-xl">
+              <ShieldCheck className="mr-2 h-5 w-5 text-primary" />
+              Enter PIN
+            </CardTitle>
             <CardDescription>
               Enter your PIN to access settings
             </CardDescription>
@@ -149,22 +166,28 @@ const SettingsPage: React.FC = () => {
               </Button>
               
               {message && (
-                <div className={`text-center ${message.includes('Error') || message.includes('Incorrect') ? 'text-red-500' : 'text-green-500'}`}>
-                  {message}
-                </div>
+                <Alert variant={message.includes('Error') || message.includes('Incorrect') ? "destructive" : "default"} className="mt-4">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{message}</AlertDescription>
+                </Alert>
               )}
             </form>
           </CardContent>
+          <CardFooter className="pt-2 pb-4">
+            <p className="text-sm text-muted-foreground">
+              Your API keys are stored locally and encrypted with your PIN.
+            </p>
+          </CardFooter>
         </Card>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto py-8">
-      <Card>
-        <CardHeader>
-          <CardTitle>Settings</CardTitle>
+    <div className="pt-3 pb-6">
+      <Card className="border shadow-sm w-full">
+        <CardHeader className="pb-4">
+          <CardTitle className="text-xl font-bold">Settings</CardTitle>
           <CardDescription>
             Manage your API keys and security settings
           </CardDescription>
@@ -172,7 +195,11 @@ const SettingsPage: React.FC = () => {
         <CardContent>
           <form onSubmit={handleSaveSettings} className="space-y-6">
             <div className="space-y-4">
-              <h3 className="text-lg font-medium">API Keys</h3>
+              <div className="flex items-center">
+                <Key className="mr-2 h-5 w-5 text-primary" />
+                <h3 className="text-lg font-medium">API Keys</h3>
+              </div>
+              <Separator className="my-2" />
               
               <div className="space-y-2">
                 <Label htmlFor="activeService">Active Service</Label>
@@ -180,7 +207,7 @@ const SettingsPage: React.FC = () => {
                   value={activeService} 
                   onValueChange={setActiveService}
                 >
-                  <SelectTrigger id="activeService">
+                  <SelectTrigger id="activeService" className="w-full">
                     <SelectValue placeholder="Select service" />
                   </SelectTrigger>
                   <SelectContent>
@@ -190,33 +217,39 @@ const SettingsPage: React.FC = () => {
                 </Select>
               </div>
               
-              <div className="space-y-2">
-                <Label htmlFor="openrouterKey">OpenRouter API Key</Label>
-                <Input
-                  id="openrouterKey"
-                  type="password"
-                  value={apiKeys.openrouter}
-                  onChange={(e) => handleApiKeyChange('openrouter', e.target.value)}
-                  placeholder="Enter your OpenRouter API key"
-                  autoComplete="off"
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="openaiKey">OpenAI API Key</Label>
-                <Input
-                  id="openaiKey"
-                  type="password"
-                  value={apiKeys.openai}
-                  onChange={(e) => handleApiKeyChange('openai', e.target.value)}
-                  placeholder="Enter your OpenAI API key"
-                  autoComplete="off"
-                />
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="openrouterKey">OpenRouter API Key</Label>
+                  <Input
+                    id="openrouterKey"
+                    type="password"
+                    value={apiKeys.openrouter}
+                    onChange={(e) => handleApiKeyChange('openrouter', e.target.value)}
+                    placeholder="Enter your OpenRouter API key"
+                    autoComplete="off"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="openaiKey">OpenAI API Key</Label>
+                  <Input
+                    id="openaiKey"
+                    type="password"
+                    value={apiKeys.openai}
+                    onChange={(e) => handleApiKeyChange('openai', e.target.value)}
+                    placeholder="Enter your OpenAI API key"
+                    autoComplete="off"
+                  />
+                </div>
               </div>
             </div>
             
-            <div className="space-y-4">
-              <h3 className="text-lg font-medium">Security</h3>
+            <div className="space-y-4 pt-2">
+              <div className="flex items-center">
+                <ShieldCheck className="mr-2 h-5 w-5 text-primary" />
+                <h3 className="text-lg font-medium">Security</h3>
+              </div>
+              <Separator className="my-2" />
               
               <div className="space-y-2">
                 <Label htmlFor="pin">PIN (Optional)</Label>
@@ -245,19 +278,21 @@ const SettingsPage: React.FC = () => {
               )}
             </div>
             
-            <Button type="submit" className="w-full">
+            <Button type="submit" className="w-full flex items-center justify-center">
+              <Save className="mr-2 h-4 w-4" />
               Save Settings
             </Button>
             
             {message && (
-              <div className={`text-center ${message.includes('Error') ? 'text-red-500' : 'text-green-500'}`}>
-                {message}
-              </div>
+              <Alert variant={message.includes('Error') ? "destructive" : "default"} className="mt-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{message}</AlertDescription>
+              </Alert>
             )}
           </form>
         </CardContent>
-        <CardFooter>
-          <p className="text-sm text-gray-500">
+        <CardFooter className="pt-2 pb-4">
+          <p className="text-sm text-muted-foreground">
             Your API keys are stored locally in your browser and never sent to any server.
             {hasPinSet && " They are encrypted with your PIN for additional security."}
           </p>
