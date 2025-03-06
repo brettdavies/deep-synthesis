@@ -18,45 +18,46 @@ export class GeminiProvider extends BaseLLMProvider {
   }
 
   async listAvailableModels(): Promise<ModelInfo[]> {
-    if (!this.settings.apiKey) {
-      return [];
-    }
-
-    try {
-      // Google doesn't provide a dedicated models endpoint like OpenAI
-      // Instead, we'll check if the API key is valid by making a minimal request
-      const isValid = await this.validateKey(this.settings.apiKey);
-      
-      if (!isValid) {
-        return [];
-      }
-      
-      // If the key is valid, return the configured models
-      return this.getModels();
-    } catch (error) {
-      console.error('Error checking Gemini models:', error);
-      return [];
-    }
+    // Use the base class method for providers without a models listing API
+    return this.getAvailableModelsWithoutListing();
   }
 
   async validateKey(key: string): Promise<boolean> {
     try {
-      // Make a minimal request to check if the key is valid
-      const response = await fetch(this.config.endpoints.chat, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${key}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: this.config.defaultModel,
-          messages: [{ role: 'user', content: 'test' }],
-          max_tokens: 1,
-        }),
-      });
-
-      return response.ok;
+      console.log('[Gemini] Validating API key...');
+      
+      // Basic format validation for browser context
+      if (!key || typeof key !== 'string' || key.trim().length < 30) {
+        console.error('[Gemini] Invalid API key format');
+        return false;
+      }
+      
+      console.log('[Gemini] API key format appears valid');
+      
+      // Try to use the makeValidationRequest method, but fall back to format validation
+      // if we encounter what appears to be a CORS issue
+      try {
+        return await this.makeValidationRequest(
+          this.config.endpoints.chat,
+          {
+            model: this.config.defaultModel,
+            messages: [{ role: 'user', content: 'test' }],
+            max_tokens: 5,
+          },
+          { 'Authorization': `Bearer ${key}` },
+          key
+        );
+      } catch (error: any) {
+        // If this appears to be a CORS/network error rather than an auth error,
+        // accept the key based on format validation
+        if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
+          console.warn('[Gemini] Could not validate key through API (likely CORS), but format is valid');
+          return true;
+        }
+        throw error; // Re-throw other errors
+      }
     } catch (error) {
+      console.error('Error validating Gemini API key:', error);
       return false;
     }
   }

@@ -40,6 +40,7 @@ export interface LLMRequest {
   maxTokens?: number;
   temperature?: number;
   stream?: boolean;
+  reasoningEffort?: 'high' | 'medium' | 'low'; // For o3-mini models
 }
 
 export interface ProviderConfig {

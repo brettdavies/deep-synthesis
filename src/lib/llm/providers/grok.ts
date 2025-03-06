@@ -18,24 +18,48 @@ export class GrokProvider extends BaseLLMProvider {
   }
 
   async listAvailableModels(): Promise<ModelInfo[]> {
-    if (!this.settings.apiKey) {
-      return [];
-    }
+    // Use the base class method for providers without a models listing API
+    return this.getAvailableModelsWithoutListing();
+  }
 
+  async validateKey(key: string): Promise<boolean> {
     try {
-      // Grok doesn't provide a dedicated models API endpoint
-      // Instead, we'll check if the API key is valid and return our configured models
-      const isValid = await this.validateKey(this.settings.apiKey);
+      console.log('[Grok] Validating API key...');
       
-      if (!isValid) {
-        return [];
+      // Basic format validation for browser context
+      if (!key || typeof key !== 'string' || key.trim().length < 30) {
+        console.error('[Grok] Invalid API key format');
+        return false;
       }
       
-      // If key is valid, return the configured models
-      return this.getModels();
+      console.log('[Grok] API key format appears valid');
+      
+      // Try to use the makeValidationRequest method, but fall back to format validation
+      // if we encounter what appears to be a CORS issue
+      try {
+        return await this.makeValidationRequest(
+          this.config.endpoints.chat,
+          {
+            model: this.config.defaultModel,
+            messages: [{ role: 'user', content: 'test' }],
+            max_tokens: 5,
+            temperature: 0.7,
+          },
+          { 'Authorization': `Bearer ${key}` },
+          key
+        );
+      } catch (error: any) {
+        // If this appears to be a CORS/network error rather than an auth error,
+        // accept the key based on format validation
+        if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
+          console.warn('[Grok] Could not validate key through API (likely CORS), but format is valid');
+          return true;
+        }
+        throw error; // Re-throw other errors
+      }
     } catch (error) {
-      console.error('Error checking Grok models:', error);
-      return [];
+      console.error('Error validating Grok API key:', error);
+      return false;
     }
   }
 

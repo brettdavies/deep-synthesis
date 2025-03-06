@@ -25,7 +25,7 @@ const Layout: React.FC = () => {
 
       <main className="flex-1 bg-background text-foreground overflow-auto h-screen">
         <div className="p-6 h-full flex justify-center">
-          <div className="w-[1024px] h-full">
+          <div className="w-full max-w-[90%] h-full">
             <Outlet />
           </div>
         </div>

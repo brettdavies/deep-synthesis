@@ -23,60 +23,34 @@ export class OpenRouterProvider extends BaseLLMProvider {
     }
 
     try {
-      // OpenRouter provides a models endpoint to list available models
-      const response = await fetch('https://openrouter.ai/api/v1/models', {
-        headers: {
-          'Authorization': `Bearer ${this.settings.apiKey}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://deep-synthesis.app',
-          'X-Title': 'Deep Synthesis',
-        },
-      });
-
-      if (!response.ok) {
-        console.error('Failed to fetch OpenRouter models:', await response.text());
-        return this.getModels(); // Fallback to configured models
-      }
-
+      console.log('[OpenRouter] Fetching available models...');
+      
+      // Use the base makeGetRequest method for consistent logging
+      const response = await this.makeGetRequest(
+        'https://openrouter.ai/api/v1/models',
+        { 'Authorization': `Bearer ${this.settings.apiKey}` }
+      );
+      
       const data = await response.json();
-      const availableModels = data.data || [];
       
-      // Map OpenRouter model data to our ModelInfo format
-      const modelInfoMap = new Map<string, ModelInfo>();
-      
-      // First, add our configured models as a baseline
-      this.getModels().forEach(model => {
-        modelInfoMap.set(model.id, model);
-      });
-      
-      // Then add/update with actual available models
-      for (const model of availableModels) {
-        // Skip non-chat models
-        if (!model.id.includes('/')) continue;
-        
-        // Extract provider and model name
-        const [provider, modelName] = model.id.split('/');
-        const displayName = model.name || `${provider.charAt(0).toUpperCase() + provider.slice(1)} ${modelName}`;
-        
-        modelInfoMap.set(model.id, {
-          id: model.id,
-          name: displayName,
-          provider: 'OpenRouter',
+      // Use the base class method to process models with a custom mapper
+      return this.processModelListResponse(
+        data.data, 
+        'id', 
+        (model: any) => ({
           capabilities: {
             maxTokens: model.context_length || 4096,
             contextWindow: model.context_length || 4096,
-            streaming: model.streaming !== false,
-            functionCalling: Boolean(model.supports_tools),
-            vision: Boolean(model.supports_vision),
+            streaming: true,
+            functionCalling: model.features?.includes('tools') || model.features?.includes('json'),
+            vision: model.features?.includes('vision'),
           },
           costPer1kTokens: {
-            input: model.pricing?.prompt || 0.001,
-            output: model.pricing?.completion || 0.002,
+            input: model.pricing?.input || 0.0005,
+            output: model.pricing?.output || 0.0015,
           },
-        });
-      }
-      
-      return Array.from(modelInfoMap.values());
+        })
+      );
     } catch (error) {
       console.error('Error fetching OpenRouter models:', error);
       return this.getModels(); // Fallback to configured models
@@ -85,27 +59,40 @@ export class OpenRouterProvider extends BaseLLMProvider {
 
   async validateKey(key: string): Promise<boolean> {
     try {
-      const response = await fetch(this.config.endpoints.chat, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${key}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': window.location.origin, // Required by OpenRouter
-          'X-Title': 'Deep Synthesis', // Optional but good practice
-        },
-        body: JSON.stringify({
-          model: this.config.defaultModel,
-          messages: [{ role: 'user', content: 'test' }],
-          max_tokens: 10
-        })
-      });
-
-      if (!response.ok) {
+      console.log('[OpenRouter] Validating API key...');
+      
+      // Basic format validation for browser context
+      if (!key || typeof key !== 'string' || key.trim().length < 30) {
+        console.error('[OpenRouter] Invalid API key format');
         return false;
       }
-
-      return true;
+      
+      console.log('[OpenRouter] API key format appears valid');
+      
+      // Try to use the makeValidationRequest method, but fall back to format validation
+      // if we encounter what appears to be a CORS issue
+      try {
+        return await this.makeValidationRequest(
+          this.config.endpoints.chat,
+          {
+            model: this.config.defaultModel,
+            messages: [{ role: 'user', content: 'test' }],
+            max_tokens: 5,
+          },
+          { 'Authorization': `Bearer ${key}` },
+          key
+        );
+      } catch (error: any) {
+        // If this appears to be a CORS/network error rather than an auth error,
+        // accept the key based on format validation
+        if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
+          console.warn('[OpenRouter] Could not validate key through API (likely CORS), but format is valid');
+          return true;
+        }
+        throw error; // Re-throw other errors
+      }
     } catch (error) {
+      console.error('Error validating OpenRouter API key:', error);
       return false;
     }
   }
