@@ -1,0 +1,11 @@
+{
+  "status": "online",
+  "version": "0.1.0",
+  "environment": "production",
+  "timestamp": "",
+  "build_date": "",
+  "dependencies": {
+    "react": "18.2.0",
+    "vite": "6.2.0"
+  }
+} 
