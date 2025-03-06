@@ -1,0 +1,9 @@
+name = "deep-synthesis"
+compatibility_date = "2024-07-29"
+compatibility_flags = ["nodejs_compat"]
+
+# This is the required field for Pages deployments
+pages_build_output_dir = "dist"
+
+# Note: Build configuration should be set in the Cloudflare dashboard
+# The [build] section has been removed as it's not supported in wrangler.toml for Pages 

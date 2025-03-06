@@ -9,7 +9,7 @@ import NewReportPage from "./pages/NewReportPage";
 import NotFoundPage from "./pages/NotFoundPage";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { Toaster } from "./components/ui/toaster";
-import "./index.css";
+import "../styles/globals.css";
 
 export function App() {
   return (
