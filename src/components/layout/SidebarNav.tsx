@@ -11,39 +11,39 @@ import {
   faChevronRight,
   faListAlt
 } from '@fortawesome/free-solid-svg-icons';
-import { useRecentReports } from '../../hooks/useRecentReports';
+import { useRecentBriefs } from '../../hooks/useRecentBriefs';
 import { cn } from '@/lib/utils';
 
 const SidebarNav: React.FC = () => {
   const location = useLocation();
-  const [reportsExpanded, setReportsExpanded] = useState(false);
-  const { recentReports, loading } = useRecentReports(5);
+  const [briefsExpanded, setBriefsExpanded] = useState(false);
+  const { recentBriefs, loading } = useRecentBriefs(5);
 
-  // Auto-expand reports section when on reports or report detail page
+  // Auto-expand briefs section when on briefs or brief detail page
   useEffect(() => {
-    if (location.pathname === '/reports' || location.pathname.startsWith('/report/')) {
-      setReportsExpanded(true);
+    if (location.pathname === '/briefs' || location.pathname.startsWith('/brief/')) {
+      setBriefsExpanded(true);
     }
   }, [location.pathname]);
 
-  const toggleReportsExpanded = () => {
-    setReportsExpanded(!reportsExpanded);
+  const toggleBriefsExpanded = () => {
+    setBriefsExpanded(!briefsExpanded);
   };
 
-  const isReportActive = location.pathname === '/reports' || 
-    (recentReports.some(report => location.pathname === `/report/${report.id}`));
+  const isBriefActive = location.pathname === '/briefs' || 
+    (recentBriefs.some(brief => location.pathname === `/brief/${brief.id}`));
 
   return (
     <nav className="flex flex-col h-full">
       {/* Main navigation items */}
       <div className="flex-1 p-4 space-y-2">
         <Link 
-          to="/new-report" 
+          to="/new-brief" 
           className="nav-link"
-          aria-current={location.pathname === '/new-report' ? 'page' : undefined}
+          aria-current={location.pathname === '/new-brief' ? 'page' : undefined}
         >
           <FontAwesomeIcon icon={faPlus} className="nav-icon" />
-          New Report
+          New Brief
         </Link>
         
         <Link 
@@ -57,47 +57,47 @@ const SidebarNav: React.FC = () => {
         
         <div>
           <button 
-            onClick={toggleReportsExpanded}
+            onClick={toggleBriefsExpanded}
             className={cn(
               "nav-link w-full text-left flex items-center justify-between",
-              isReportActive && "bg-sidebar-active"
+              isBriefActive && "bg-sidebar-active"
             )}
-            aria-expanded={reportsExpanded}
+            aria-expanded={briefsExpanded}
           >
             <div className="flex items-center">
               <FontAwesomeIcon icon={faFileAlt} className="nav-icon" />
-              Reports
+              Briefs
             </div>
             <FontAwesomeIcon 
-              icon={reportsExpanded ? faChevronDown : faChevronRight} 
+              icon={briefsExpanded ? faChevronDown : faChevronRight} 
               className="h-3 w-3 transition-transform"
             />
           </button>
           
-          {reportsExpanded && (
+          {briefsExpanded && (
             <div className="pl-6 mt-1 space-y-1">
               <Link 
-                to="/reports" 
+                to="/briefs" 
                 className={cn(
                   "nav-link py-1.5 text-sm",
-                  location.pathname === '/reports' && "bg-sidebar-active"
+                  location.pathname === '/briefs' && "bg-sidebar-active"
                 )}
               >
                 <FontAwesomeIcon icon={faListAlt} className="nav-icon h-3 w-3" />
-                All Reports
+                All Briefs
               </Link>
               
-              {!loading && recentReports.map(report => (
+              {!loading && recentBriefs.map(brief => (
                 <Link 
-                  key={report.id}
-                  to={`/report/${report.id}`}
+                  key={brief.id}
+                  to={`/brief/${brief.id}`}
                   className={cn(
                     "nav-link py-1.5 text-sm truncate",
-                    location.pathname === `/report/${report.id}` && "bg-sidebar-active"
+                    location.pathname === `/brief/${brief.id}` && "bg-sidebar-active"
                   )}
-                  title={report.title}
+                  title={brief.title}
                 >
-                  <span className="truncate block">{report.title}</span>
+                  <span className="truncate block">{brief.title}</span>
                 </Link>
               ))}
             </div>

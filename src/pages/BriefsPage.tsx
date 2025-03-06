@@ -2,31 +2,31 @@ import { useNavigate } from 'react-router-dom';
 
 // Custom hooks
 import { useDatabaseData } from '@/hooks/useDatabaseData';
-import { useReportOperations } from '@/hooks/useReportOperations';
+import { useBriefOperations } from '@/hooks/useBriefOperations';
 
 // Components
 import { EmptyState } from '@/components/common/EmptyState';
-import { ReportsTable } from '@/components/reports/ReportsTable';
-import { ReportsHeader } from '@/components/reports/ReportsHeader';
+import { BriefsTable } from '@/components/briefs/BriefsTable';
+import { BriefsHeader } from '@/components/briefs/BriefsHeader';
 import { Loader } from '@/components/ui/loader';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
 import { DeleteConfirmationDialog } from '@/components/common/DeleteConfirmationDialog';
 
 /**
- * ReportsPage component for displaying and managing reports
+ * BriefsPage component for displaying and managing briefs
  */
-export default function ReportsPage() {
+export default function BriefsPage() {
   const navigate = useNavigate();
   
   // Get data reactively from the database
-  const { reports, loading, error } = useDatabaseData();
+  const { briefs, loading, error } = useDatabaseData();
   
   // Use the refactored hook that doesn't need state setters
-  const reportOps = useReportOperations();
+  const briefOps = useBriefOperations();
 
-  const handleCreateReport = () => {
-    navigate('/new-report');
+  const handleCreateBrief = () => {
+    navigate('/new-brief');
   };
 
   // Render loading state
@@ -34,7 +34,7 @@ export default function ReportsPage() {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <Loader className="h-8 w-8" />
-        <span className="ml-2">Loading reports...</span>
+        <span className="ml-2">Loading briefs...</span>
       </div>
     );
   }
@@ -46,7 +46,7 @@ export default function ReportsPage() {
         <AlertCircle className="h-4 w-4" />
         <AlertTitle>Error</AlertTitle>
         <AlertDescription>
-          Failed to load reports: {error.message}
+          Failed to load briefs: {error.message}
           <button 
             className="block mt-2 underline"
             onClick={() => window.location.reload()}
@@ -59,41 +59,41 @@ export default function ReportsPage() {
   }
 
   // Render empty state
-  if (reports.length === 0) {
-    return <EmptyState type="reports" onActionClick={handleCreateReport} />;
+  if (briefs.length === 0) {
+    return <EmptyState type="briefs" onActionClick={handleCreateBrief} />;
   }
 
-  // Render reports table
+  // Render briefs table
   return (
     <div className="h-full flex flex-col">
-      <ReportsHeader 
-        reportsCount={reports.length}
-        onDeleteAllReports={reportOps.confirmDeleteAllReports}
+      <BriefsHeader 
+        briefsCount={briefs.length}
+        onDeleteAllBriefs={briefOps.confirmDeleteAllBriefs}
       />
       
       <div className="flex-1 overflow-auto min-h-0">
-        <ReportsTable 
-          reports={reports}
-          onView={reportOps.handleViewReport}
-          onDelete={reportOps.confirmDeleteReport}
+        <BriefsTable 
+          briefs={briefs}
+          onView={briefOps.handleViewBrief}
+          onDelete={briefOps.confirmDeleteBrief}
         />
       </div>
 
       {/* Confirmation dialogs */}
       <DeleteConfirmationDialog
-        open={reportOps.showDeleteConfirmation}
-        onOpenChange={reportOps.setShowDeleteConfirmation}
-        title="Delete Report"
-        description="Are you sure you want to delete this report? This action cannot be undone."
-        onConfirm={reportOps.handleDeleteReport}
+        open={briefOps.showDeleteConfirmation}
+        onOpenChange={briefOps.setShowDeleteConfirmation}
+        title="Delete Brief"
+        description="Are you sure you want to delete this brief? This action cannot be undone."
+        onConfirm={briefOps.handleDeleteBrief}
       />
       
       <DeleteConfirmationDialog
-        open={reportOps.showDeleteAllConfirmation}
-        onOpenChange={reportOps.setShowDeleteAllConfirmation}
-        title="Delete All Reports"
-        description="Are you sure you want to delete all your reports? This action cannot be undone."
-        onConfirm={reportOps.handleDeleteAllReports}
+        open={briefOps.showDeleteAllConfirmation}
+        onOpenChange={briefOps.setShowDeleteAllConfirmation}
+        title="Delete All Briefs"
+        description="Are you sure you want to delete all your briefs? This action cannot be undone."
+        onConfirm={briefOps.handleDeleteAllBriefs}
       />
     </div>
   );

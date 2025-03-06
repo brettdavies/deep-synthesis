@@ -9,19 +9,19 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { formatDate } from '@/lib/utils/formatting/date';
-import { type Report } from '@/types';
+import { type Brief } from '@/lib/db/schema/brief';
 import { Trash, Eye } from 'lucide-react';
 
-type ReportsTableProps = {
-  reports: Report[];
+type BriefsTableProps = {
+  briefs: Brief[];
   onView: (id: string) => void;
   onDelete: (id: string) => void;
 };
 
 /**
- * ReportsTable component for displaying reports in a table format
+ * BriefsTable component for displaying briefs in a table format
  */
-export function ReportsTable({ reports, onView, onDelete }: ReportsTableProps) {
+export function BriefsTable({ briefs, onView, onDelete }: BriefsTableProps) {
   return (
     <div className="border rounded-md mt-4 w-full">
       <div className="overflow-auto">
@@ -35,16 +35,16 @@ export function ReportsTable({ reports, onView, onDelete }: ReportsTableProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {reports.map(report => (
-              <TableRow key={report.id}>
+            {briefs.map(brief => (
+              <TableRow key={brief.id}>
                 <TableCell>
-                  <div className="line-clamp-2 font-medium">{report.title}</div>
+                  <div className="line-clamp-2 font-medium">{brief.title}</div>
                 </TableCell>
                 <TableCell className="text-sm">
-                  {formatDate(report.createdAt)}
+                  {formatDate(brief.createdAt)}
                 </TableCell>
                 <TableCell className="text-sm">
-                  {report.paperIds?.length || 0} papers
+                  {brief.references?.length || 0} papers
                 </TableCell>
                 <TableCell>
                   <div className="flex justify-center space-x-1">
@@ -54,12 +54,12 @@ export function ReportsTable({ reports, onView, onDelete }: ReportsTableProps) {
                           <Button 
                             variant="outline" 
                             size="sm" 
-                            onClick={() => onView(report.id!)}
+                            onClick={() => onView(brief.id!)}
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent>View Report</TooltipContent>
+                        <TooltipContent>View Brief</TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
                     
@@ -69,12 +69,12 @@ export function ReportsTable({ reports, onView, onDelete }: ReportsTableProps) {
                           <Button 
                             variant="destructive" 
                             size="sm" 
-                            onClick={() => onDelete(report.id!)}
+                            onClick={() => onDelete(brief.id!)}
                           >
                             <Trash className="h-4 w-4" />
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent>Delete Report</TooltipContent>
+                        <TooltipContent>Delete Brief</TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
                   </div>

@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import toast from 'react-hot-toast';
-import { PaperOperations, ReportOperations } from '@/lib/db/operations';
+import { PaperOperations, BriefOperations } from '@/lib/db/operations';
 import type { Paper } from '@/lib/db/schema/paper';
-import type { Report } from '@/lib/db/schema/report';
+import type { Brief } from '@/lib/db/schema/brief';
 
 /**
  * Custom hook to reactively load and manage database data
@@ -11,7 +11,7 @@ import type { Report } from '@/lib/db/schema/report';
  * Uses Dexie's liveQuery for real-time reactivity - UI will update
  * automatically when data changes in this tab or other browser tabs
  * 
- * @returns Object containing papers, reports, loading state, error state, and total size
+ * @returns Object containing papers, briefs, loading state, error state, and total size
  */
 export function useDatabaseData() {
   const [error, setError] = useState<Error | null>(null);
@@ -33,16 +33,16 @@ export function useDatabaseData() {
     []
   );
 
-  // Reactively query reports with liveQuery
-  const reports = useLiveQuery(
+  // Reactively query briefs with liveQuery
+  const briefs = useLiveQuery(
     async () => {
       try {
-        const result = await ReportOperations.getAll();
+        const result = await BriefOperations.getAll();
         return result || [];
       } catch (err) {
-        console.error('Error loading reports:', err);
-        setError(err instanceof Error ? err : new Error('Failed to load reports'));
-        toast.error('Error loading reports');
+        console.error('Error loading briefs:', err);
+        setError(err instanceof Error ? err : new Error('Failed to load briefs'));
+        toast.error('Error loading briefs');
         return [];
       }
     },
@@ -60,11 +60,11 @@ export function useDatabaseData() {
   );
 
   // Determine if data is still loading
-  const loading = papers === undefined || reports === undefined;
+  const loading = papers === undefined || briefs === undefined;
 
   return {
     papers: papers || [],
-    reports: reports || [],
+    briefs: briefs || [],
     totalSize: totalSize || 0,
     loading,
     error

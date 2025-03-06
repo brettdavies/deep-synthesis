@@ -2,25 +2,25 @@ import { Button } from '@/components/ui/button';
 import { FileText, File } from 'lucide-react';
 
 type EmptyStateProps = {
-  type: 'papers' | 'reports';
+  type: 'papers' | 'briefs';
   onActionClick: () => void;
 };
 
 /**
- * EmptyState component for displaying a message when no papers or reports are available
+ * EmptyState component for displaying a message when no papers or briefs are available
  */
 export function EmptyState({ type, onActionClick }: EmptyStateProps) {
   const title = type === 'papers' 
     ? 'No papers saved' 
-    : 'No reports generated';
+    : 'No briefs generated';
   
   const message = type === 'papers'
     ? 'Start by finding papers for your research topic.'
-    : 'Start by generating a report from your papers.';
+    : 'Start by generating a brief from your papers.';
   
   const buttonText = type === 'papers'
     ? 'Find Papers'
-    : 'Create Report';
+    : 'Create Brief';
   
   const Icon = type === 'papers' ? File : FileText;
 

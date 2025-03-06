@@ -1,5 +1,5 @@
 import type { Paper } from '../schema/paper';
-import type { Report } from '../schema/report';
+import type { Brief } from '../schema/brief';
 import type { Setting } from '../schema/setting';
 
 /**
@@ -24,17 +24,17 @@ export function validatePaper(paper: Partial<Paper>): void {
 }
 
 /**
- * Validate report data before insertion or update
+ * Validate brief data before insertion or update
  */
-export function validateReport(report: Partial<Report>): void {
-  if (!report.title?.trim()) {
-    throw new Error('Report title is required');
+export function validateBrief(brief: Partial<Brief>): void {
+  if (!brief.title?.trim()) {
+    throw new Error('Brief title is required');
   }
-  if (!report.query?.trim()) {
-    throw new Error('Report query is required');
+  if (!brief.query?.trim()) {
+    throw new Error('Brief query is required');
   }
-  if (!report.references?.length) {
-    throw new Error('Report must have at least one reference');
+  if (!brief.references?.length) {
+    throw new Error('Brief must have at least one reference');
   }
 }
 

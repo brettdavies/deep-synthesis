@@ -1,3 +1,3 @@
 export { paperHooks } from './paper';
-export { reportHooks } from './report';
+export { briefHooks } from './brief';
 export { settingHooks } from './setting'; 

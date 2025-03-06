@@ -2,10 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { Loading } from '@/components/ui/loading';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ReportOperations } from '@/lib/db/operations';
-import type { Report } from '@/lib/db/schema/report';
+import { BriefOperations } from '@/lib/db/operations';
+import type { Brief } from '@/lib/db/schema/brief';
 import ReactMarkdown from 'react-markdown';
 import { ensureHttps } from '@/lib/utils/network/url';
 import { formatDate } from '@/lib/utils/formatting/date';
@@ -13,54 +12,54 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle, ArrowLeft } from 'lucide-react';
 import { Loader } from '@/components/ui/loader';
 
-const ReportPage: React.FC = () => {
+const BriefPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [report, setReport] = useState<Report | null>(null);
+  const [brief, setBrief] = useState<Brief | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('review');
 
   useEffect(() => {
-    const loadReport = async () => {
+    const loadBrief = async () => {
       if (!id) {
-        setError('Report ID is missing');
+        setError('Brief ID is missing');
         setIsLoading(false);
         return;
       }
 
       try {
-        const reportData = await ReportOperations.getById(id);
-        if (!reportData) {
-          setError('Report not found');
+        const briefData = await BriefOperations.getById(id);
+        if (!briefData) {
+          setError('Brief not found');
         } else {
-          setReport(reportData);
+          setBrief(briefData);
         }
       } catch (err) {
-        console.error('Error loading report:', err);
-        setError('Failed to load report');
+        console.error('Error loading brief:', err);
+        setError('Failed to load brief');
       } finally {
         setIsLoading(false);
       }
     };
 
-    loadReport();
+    loadBrief();
   }, [id]);
 
   const handleExport = () => {
-    if (!report) return;
+    if (!brief) return;
 
-    // Create a blob with the report content
+    // Create a blob with the brief content
     const blob = new Blob([
-      `# ${report.title}\n\n`,
-      `Generated on: ${formatDate(report.date)}\n\n`,
-      report.review || 'No review content available.',
+      `# ${brief.title}\n\n`,
+      `Generated on: ${formatDate(brief.date)}\n\n`,
+      brief.review || 'No review content available.',
       '\n\n## References\n\n',
-      report.references.map((ref, index) => 
+      brief.references.map((ref, index) => 
         `[${index + 1}] ${ref.text}`
       ).join('\n\n'),
       '\n\n## BibTeX\n\n```\n',
-      report.bibtex || 'No BibTeX available.',
+      brief.bibtex || 'No BibTeX available.',
       '\n```'
     ], { type: 'text/markdown' });
 
@@ -68,7 +67,7 @@ const ReportPage: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${report.title.replace(/\s+/g, '_')}.md`;
+    a.download = `${brief.title.replace(/\s+/g, '_')}.md`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -76,14 +75,14 @@ const ReportPage: React.FC = () => {
   };
 
   const handleDelete = async () => {
-    if (!id || !window.confirm('Are you sure you want to delete this report?')) return;
+    if (!id || !window.confirm('Are you sure you want to delete this brief?')) return;
 
     try {
-      await ReportOperations.delete(id);
-      navigate('/reports');
+      await BriefOperations.delete(id);
+      navigate('/briefs');
     } catch (err) {
-      console.error('Error deleting report:', err);
-      setError('Failed to delete report');
+      console.error('Error deleting brief:', err);
+      setError('Failed to delete brief');
     }
   };
 
@@ -102,11 +101,11 @@ const ReportPage: React.FC = () => {
           <CardContent className="py-16">
             <div className="flex flex-col items-center justify-center min-h-[40vh]">
               <Loader className="h-8 w-8 mb-4" />
-              <span className="text-muted-foreground">Loading report...</span>
+              <span className="text-muted-foreground">Loading brief...</span>
             </div>
           </CardContent>
           <CardFooter>
-            <Button variant="outline" onClick={() => navigate('/reports')}>Back to Reports</Button>
+            <Button variant="outline" onClick={() => navigate('/briefs')}>Back to Briefs</Button>
           </CardFooter>
         </Card>
       </div>
@@ -124,7 +123,7 @@ const ReportPage: React.FC = () => {
               <AlertDescription>{error}</AlertDescription>
             </Alert>
             <div className="flex justify-center">
-              <Button variant="outline" onClick={() => navigate('/reports')}>Back to Reports</Button>
+              <Button variant="outline" onClick={() => navigate('/briefs')}>Back to Briefs</Button>
             </div>
           </CardContent>
         </Card>
@@ -132,18 +131,18 @@ const ReportPage: React.FC = () => {
     );
   }
 
-  if (!report) {
+  if (!brief) {
     return (
       <div className="pt-3 pb-6">
         <Card className="border shadow-sm">
           <CardContent className="py-16">
             <div className="flex flex-col items-center justify-center min-h-[40vh]">
               <Loader className="h-8 w-8 mb-4" />
-              <span className="text-muted-foreground">Report not found...</span>
+              <span className="text-muted-foreground">Brief not found...</span>
             </div>
           </CardContent>
           <CardFooter>
-            <Button variant="outline" onClick={() => navigate('/reports')}>Back to Reports</Button>
+            <Button variant="outline" onClick={() => navigate('/briefs')}>Back to Briefs</Button>
           </CardFooter>
         </Card>
       </div>
@@ -156,21 +155,21 @@ const ReportPage: React.FC = () => {
         <Button 
           variant="ghost" 
           size="sm" 
-          onClick={() => navigate('/reports')} 
+          onClick={() => navigate('/briefs')} 
           className="flex items-center text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4 mr-1" />
-          Back to Reports
+          Back to Briefs
         </Button>
       </div>
       <Card className="border shadow-sm w-full">
         <CardHeader className="pb-4">
           <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
             <div>
-              <CardTitle className="text-2xl font-bold">{report.title}</CardTitle>
+              <CardTitle className="text-2xl font-bold">{brief.title}</CardTitle>
               <CardDescription className="text-muted-foreground mt-1">
-                Generated on {formatDate(report.date)} • 
-                Based on {report.references.length} paper{report.references.length !== 1 ? 's' : ''}
+                Generated on {formatDate(brief.date)} • 
+                Based on {brief.references.length} paper{brief.references.length !== 1 ? 's' : ''}
               </CardDescription>
             </div>
             <div className="flex gap-2 self-start">
@@ -187,21 +186,21 @@ const ReportPage: React.FC = () => {
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="mb-4 bg-muted">
               <TabsTrigger value="review">Literature Review</TabsTrigger>
-              <TabsTrigger value="references">References ({report.references.length})</TabsTrigger>
-              {report.bibtex && <TabsTrigger value="bibtex">BibTeX</TabsTrigger>}
+              <TabsTrigger value="references">References ({brief.references.length})</TabsTrigger>
+              {brief.bibtex && <TabsTrigger value="bibtex">BibTeX</TabsTrigger>}
             </TabsList>
             
             <TabsContent value="review" className="prose prose-sm sm:prose lg:prose-lg dark:prose-invert">
-              {report.review ? (
+              {brief.review ? (
                 <div className="bg-card border rounded-md p-4 mb-4">
                   <ReactMarkdown>
-                    {report.review}
+                    {brief.review}
                   </ReactMarkdown>
                 </div>
               ) : (
                 <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-md mb-6 border border-yellow-200 dark:border-yellow-900">
                   <p className="text-yellow-800 dark:text-yellow-200">
-                    This report doesn't have a review yet. Enable AI review generation in the AI Settings section on the home page.
+                    This brief doesn't have a review yet. Enable AI review generation in the AI Settings section on the home page.
                   </p>
                 </div>
               )}
@@ -211,7 +210,7 @@ const ReportPage: React.FC = () => {
               <div className="bg-card border rounded-md p-4 mb-4">
                 <h2 className="text-xl font-semibold mb-4">References</h2>
                 <ol className="list-decimal pl-5 space-y-4">
-                  {report.references.map((ref, index) => (
+                  {brief.references.map((ref, index) => (
                     <li key={index} className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2 pb-3 border-b last:border-0">
                       <span className="text-sm">{ref.text}</span>
                       {ref.pdfUrl && (
@@ -230,12 +229,12 @@ const ReportPage: React.FC = () => {
               </div>
             </TabsContent>
             
-            {report.bibtex && (
+            {brief.bibtex && (
               <TabsContent value="bibtex">
                 <div className="bg-card border rounded-md p-4 mb-4">
                   <h2 className="text-xl font-semibold mb-4">BibTeX</h2>
                   <pre className="bg-muted p-4 rounded-md overflow-x-auto whitespace-pre-wrap text-sm font-mono">
-                    {report.bibtex}
+                    {brief.bibtex}
                   </pre>
                 </div>
               </TabsContent>
@@ -244,7 +243,7 @@ const ReportPage: React.FC = () => {
         </CardContent>
         <CardFooter className="pt-4">
           <div className="w-full flex justify-between">
-            <Button variant="outline" onClick={() => navigate('/reports')}>Back to Reports</Button>
+            <Button variant="outline" onClick={() => navigate('/briefs')}>Back to Briefs</Button>
             <Button variant="secondary" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
               Back to Top
             </Button>
@@ -255,4 +254,4 @@ const ReportPage: React.FC = () => {
   );
 };
 
-export default ReportPage; 
+export default BriefPage; 

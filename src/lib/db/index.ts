@@ -1,7 +1,7 @@
 import Dexie from 'dexie';
 import type { ResearchDBSchema } from './schema/index';
 import { DB_VERSION, DB_SCHEMA } from './schema/index';
-import { paperHooks, reportHooks, settingHooks } from './hooks/index';
+import { paperHooks, briefHooks, settingHooks } from './hooks/index';
 import { Migration, type MigrationContext } from './utils/migrations';
 import { DatabaseError, TransactionError } from './utils/errors';
 
@@ -9,7 +9,7 @@ import { DatabaseError, TransactionError } from './utils/errors';
 class ResearchDB extends Dexie {
   papers!: ResearchDBSchema['papers'];
   settings!: ResearchDBSchema['settings'];
-  reports!: ResearchDBSchema['reports'];
+  briefs!: ResearchDBSchema['briefs'];
   private migration: Migration;
 
   constructor() {
@@ -33,8 +33,8 @@ class ResearchDB extends Dexie {
     this.papers.hook('updating', paperHooks.updating);
     this.settings.hook('creating', settingHooks.creating);
     this.settings.hook('updating', settingHooks.updating);
-    this.reports.hook('creating', reportHooks.creating);
-    this.reports.hook('updating', reportHooks.updating);
+    this.briefs.hook('creating', briefHooks.creating);
+    this.briefs.hook('updating', briefHooks.updating);
   }
 
   /**
@@ -56,11 +56,11 @@ class ResearchDB extends Dexie {
    */
   async clearAllData(): Promise<void> {
     try {
-      await this.transaction('rw', [this.papers, this.settings, this.reports], async () => {
+      await this.transaction('rw', [this.papers, this.settings, this.briefs], async () => {
         await Promise.all([
           this.papers.clear(),
           this.settings.clear(),
-          this.reports.clear()
+          this.briefs.clear()
         ]);
       });
     } catch (error) {
@@ -76,7 +76,7 @@ class ResearchDB extends Dexie {
       return {
         papers: await this.migration.backupTable(this.papers),
         settings: await this.migration.backupTable(this.settings),
-        reports: await this.migration.backupTable(this.reports)
+        briefs: await this.migration.backupTable(this.briefs)
       };
     } catch (error) {
       throw new DatabaseError('Failed to backup database', error as Error);
@@ -88,11 +88,11 @@ class ResearchDB extends Dexie {
    */
   async restore(backup: Record<string, any[]>): Promise<void> {
     try {
-      await this.transaction('rw', [this.papers, this.settings, this.reports], async () => {
+      await this.transaction('rw', [this.papers, this.settings, this.briefs], async () => {
         await Promise.all([
           this.migration.restoreTable(this.papers, backup.papers),
           this.migration.restoreTable(this.settings, backup.settings),
-          this.migration.restoreTable(this.reports, backup.reports)
+          this.migration.restoreTable(this.briefs, backup.briefs)
         ]);
       });
     } catch (error) {

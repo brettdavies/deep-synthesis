@@ -3,26 +3,26 @@ import { Card } from '@/components/ui/card';
 import { PlusCircle, Trash } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-type ReportsHeaderProps = {
-  reportsCount: number;
-  onDeleteAllReports: () => void;
+type BriefsHeaderProps = {
+  briefsCount: number;
+  onDeleteAllBriefs: () => void;
 };
 
 /**
- * Header component for the Reports page with actions
+ * Header component for the Briefs page with actions
  */
-export function ReportsHeader({ reportsCount, onDeleteAllReports }: ReportsHeaderProps) {
+export function BriefsHeader({ briefsCount, onDeleteAllBriefs }: BriefsHeaderProps) {
   const navigate = useNavigate();
 
-  const handleCreateReport = () => {
-    navigate('/new-report');
+  const handleCreateBrief = () => {
+    navigate('/new-brief');
   };
 
   return (
     <Card className="mb-3">
       <div className="flex items-center justify-between px-6 py-3">
         <div className="flex items-center space-x-3">
-          <h3 className="text-lg font-semibold">Generated Reports ({reportsCount})</h3>
+          <h3 className="text-lg font-semibold">Generated Briefs ({briefsCount})</h3>
         </div>
         
         <div className="flex space-x-2">
@@ -30,17 +30,17 @@ export function ReportsHeader({ reportsCount, onDeleteAllReports }: ReportsHeade
             variant="outline" 
             size="sm"
             className="flex items-center space-x-1"
-            onClick={handleCreateReport}
+            onClick={handleCreateBrief}
           >
             <PlusCircle className="h-4 w-4" />
-            <span>New Report</span>
+            <span>New Brief</span>
           </Button>
-          {reportsCount > 0 && (
+          {briefsCount > 0 && (
             <Button 
               variant="destructive" 
               size="sm"
               className="flex items-center space-x-1"
-              onClick={onDeleteAllReports}
+              onClick={onDeleteAllBriefs}
             >
               <Trash className="h-4 w-4" />
               <span>Delete All</span>

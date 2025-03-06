@@ -1,25 +1,25 @@
-import type { Report } from '../schema/report';
+import type { Brief } from '../schema/brief';
 import { generateUUID } from '../../utils/id/uuid';
 
 type Modifications<T> = Partial<T>;
 
-const addTimestampsAndUUID = (obj: Report) => {
+const addTimestampsAndUUID = (obj: Brief) => {
   const now = new Date();
   obj.id = generateUUID();
   obj.createdAt = now;
   obj.updatedAt = now;
 };
 
-const updateTimestamp = (modifications: Modifications<Report>) => {
+const updateTimestamp = (modifications: Modifications<Brief>) => {
   modifications.updatedAt = new Date();
   return modifications;
 };
 
-export const reportHooks = {
-  creating: (primKey: string, obj: Report) => {
+export const briefHooks = {
+  creating: (primKey: string, obj: Brief) => {
     addTimestampsAndUUID(obj);
   },
-  updating: (modifications: Modifications<Report>, primKey: string, obj: Report) => {
+  updating: (modifications: Modifications<Brief>, primKey: string, obj: Brief) => {
     return updateTimestamp(modifications);
   }
 }; 

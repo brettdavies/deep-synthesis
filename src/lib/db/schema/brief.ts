@@ -1,6 +1,6 @@
 import type { Table } from 'dexie';
 
-export interface Report {
+export interface Brief {
   id: string;             // UUID v4
   title: string;
   query: string;
@@ -16,6 +16,6 @@ export interface Report {
   updatedAt: Date;
 }
 
-export type ReportTable = Table<Report>;
+export type BriefTable = Table<Brief>;
 
-export const REPORT_SCHEMA = 'id, title, query, date, createdAt, updatedAt'; 
+export const BRIEF_SCHEMA = 'id, title, query, review, references, bibtex, date, createdAt, updatedAt'; 

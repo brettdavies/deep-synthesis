@@ -10,7 +10,8 @@ import { Progress } from '@/components/ui/progress';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { searchArxiv } from '@/lib/services/arxiv';
 import { PaperOperations } from '@/lib/db/operations';
-import { ReportOperations } from '@/lib/db/operations';
+import { BriefOperations } from '@/lib/db/operations';
+import type { Paper } from '@/lib/db/schema/paper';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faSearch, 
@@ -23,22 +24,13 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import toast from 'react-hot-toast';
 
+// Extended Paper type with selected property
+type PaperWithSelection = Paper & { selected?: boolean };
+
 // Step statuses
 type StepStatus = 'pending' | 'active' | 'completed';
 
-// Paper item type (simplified)
-interface Paper {
-  id: string;
-  title: string;
-  authors: string[];
-  abstract: string;
-  year: string;
-  pdfUrl: string;
-  bibtex: string;
-  selected?: boolean;
-}
-
-const NewReportPage: React.FC = () => {
+const NewBriefPage: React.FC = () => {
   const navigate = useNavigate();
   
   // Form inputs
@@ -61,9 +53,9 @@ const NewReportPage: React.FC = () => {
   const [statusMessage, setStatusMessage] = useState('');
   
   // Data states
-  const [papers, setPapers] = useState<Paper[]>([]);
+  const [papers, setPapers] = useState<PaperWithSelection[]>([]);
   const [refinedQuery, setRefinedQuery] = useState('');
-  const [selectedPapers, setSelectedPapers] = useState<Paper[]>([]);
+  const [selectedPapers, setSelectedPapers] = useState<PaperWithSelection[]>([]);
   
   // Mark a step as complete and advance to the next step
   const completeStep = (step: number) => {
@@ -194,20 +186,20 @@ const NewReportPage: React.FC = () => {
     completeStep(3);
   };
 
-  // Step 4: Generate report
-  const handleGenerateReport = async () => {
+  // Step 4: Generate brief
+  const handleGenerateBrief = async () => {
     setIsLoading(true);
     setProgress(0);
-    setStatusMessage('Generating report...');
+    setStatusMessage('Generating brief...');
     
     try {
       // Update progress
       setProgress(20);
-      setStatusMessage('Creating report...');
+      setStatusMessage('Creating brief...');
       
-      // Create a new report
-      const reportId = await ReportOperations.create({
-        title: `Report: ${refinedQuery || query}`,
+      // Create a new brief
+      const briefId = await BriefOperations.create({
+        title: `Brief: ${refinedQuery || query}`,
         query: refinedQuery || query,
         references: selectedPapers.map(paper => ({
           paperId: paper.id,
@@ -221,19 +213,19 @@ const NewReportPage: React.FC = () => {
       
       // Complete progress
       setProgress(100);
-      setStatusMessage('Report generated!');
+      setStatusMessage('Brief generated!');
       
-      // Navigate to the report page
+      // Navigate to the brief page
       setTimeout(() => {
         setIsLoading(false);
-        navigate(`/report/${reportId}`);
+        navigate(`/brief/${briefId}`);
       }, 500);
     } catch (error) {
-      console.error('Error generating report:', error);
-      setStatusMessage('Error generating report. Please try again.');
+      console.error('Error generating brief:', error);
+      setStatusMessage('Error generating brief. Please try again.');
       
       // Show error toast notification
-      toast.error(`Failed to generate report: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error(`Failed to generate brief: ${error instanceof Error ? error.message : 'Unknown error'}`);
       
       setIsLoading(false);
     }
@@ -447,7 +439,7 @@ const NewReportPage: React.FC = () => {
             <CardHeader>
               <CardTitle className="text-2xl">Step 3: Select Papers</CardTitle>
               <CardDescription>
-                Choose which papers to include in your research report
+                Choose which papers to include in your research brief
               </CardDescription>
             </CardHeader>
             
@@ -521,9 +513,9 @@ const NewReportPage: React.FC = () => {
         return (
           <Card className="shadow-lg w-full">
             <CardHeader>
-              <CardTitle className="text-2xl">Step 4: Generate Report</CardTitle>
+              <CardTitle className="text-2xl">Step 4: Generate Brief</CardTitle>
               <CardDescription>
-                Create your research report based on selected papers
+                Create your research brief based on selected papers
               </CardDescription>
             </CardHeader>
             
@@ -548,12 +540,12 @@ const NewReportPage: React.FC = () => {
                 </div>
               </div>
               
-              {/* Report Options */}
+              {/* Brief Options */}
               <div className="space-y-4">
-                <Label htmlFor="reportStyle" className="text-base">Report Style</Label>
+                <Label htmlFor="briefStyle" className="text-base">Brief Style</Label>
                 <Select defaultValue="standard">
-                  <SelectTrigger id="reportStyle" className="h-12">
-                    <SelectValue placeholder="Select report style" />
+                  <SelectTrigger id="briefStyle" className="h-12">
+                    <SelectValue placeholder="Select brief style" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="standard">Standard Academic</SelectItem>
@@ -585,7 +577,7 @@ const NewReportPage: React.FC = () => {
                 </Button>
                 
                 <Button
-                  onClick={handleGenerateReport}
+                  onClick={handleGenerateBrief}
                   disabled={isLoading || selectedPapers.length === 0}
                 >
                   {isLoading ? (
@@ -596,7 +588,7 @@ const NewReportPage: React.FC = () => {
                   ) : (
                     <>
                       <FontAwesomeIcon icon={faFileCode} className="mr-2 h-4 w-4" />
-                      Generate Report
+                      Generate Brief
                     </>
                   )}
                 </Button>
@@ -614,7 +606,7 @@ const NewReportPage: React.FC = () => {
     <div className="h-full flex flex-col overflow-auto">
       <div className="space-y-8 py-6">
         <div className="text-center space-y-4">
-          <h1 className="text-3xl font-bold tracking-tight">Create a New Research Report</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Create a New Research Brief</h1>
           <p className="text-gray-600 dark:text-gray-300">
             Follow these steps to create a comprehensive literature review
           </p>
@@ -656,7 +648,7 @@ const NewReportPage: React.FC = () => {
                     {step === 1 && 'Find Papers'}
                     {step === 2 && 'Refine Query'}
                     {step === 3 && 'Select Papers'}
-                    {step === 4 && 'Generate Report'}
+                    {step === 4 && 'Generate Brief'}
                   </h3>
                 </div>
               </div>
@@ -673,4 +665,4 @@ const NewReportPage: React.FC = () => {
   );
 };
 
-export default NewReportPage; 
+export default NewBriefPage; 

@@ -44,7 +44,7 @@ export const AI_PROVIDERS: AIProviders = {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${apiKey}`,
       'HTTP-Referer': window.location.origin,
-      'X-Title': 'Research Report Generator'
+      'X-Title': 'Research Brief Generator'
     }),
     getPromptTemplate: () => `
       You are a research assistant tasked with creating a comprehensive literature review based on the following papers.

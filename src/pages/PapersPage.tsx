@@ -48,7 +48,7 @@ export default function PapersPage() {
   };
 
   const handleFindPapers = () => {
-    navigate('/new-report');
+    navigate('/new-brief');
   };
 
   // Render loading state

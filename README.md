@@ -1,4 +1,4 @@
-# Deep Synthesis - Research Report Generator
+# Deep Synthesis - Research Brief Generator
 
 A client-side web application for generating AI-powered literature reviews.
 
@@ -6,11 +6,11 @@ A client-side web application for generating AI-powered literature reviews.
 
 ### Overview
 
-Research Report Generator is a privacy-focused tool that helps researchers and academics create literature reviews quickly using AI. The application runs entirely in your browser, with **zero tracking, analytics, or telemetry**, ensuring your research queries and data remain private.
+Research Brief Generator is a privacy-focused tool that helps researchers and academics create literature reviews quickly using AI. The application runs entirely in your browser, with **zero tracking, analytics, or telemetry**, ensuring your research queries and data remain private.
 
 ### Key Features
 
-- **AI-Powered Literature Reviews**: Generate comprehensive reports based on arXiv papers
+- **AI-Powered Literature Reviews**: Generate comprehensive briefs based on arXiv papers
 - **100% Client-Side Processing**: All data processing happens in your browser
 - **Offline Capability**: Access stored papers even without an internet connection
 - **Secure API Key Storage**: Optional PIN protection for your API keys
@@ -27,8 +27,8 @@ Research Report Generator is a privacy-focused tool that helps researchers and a
 3. **Start Researching**:
    - Enter your research topic
    - Specify the number of papers (1-100)
-   - Click "Generate Report"
-4. **View Your Report**: The application will create a literature review with proper citations
+   - Click "Generate Brief"
+4. **View Your Brief**: The application will create a literature review with proper citations
 
 For detailed instructions, see the [User Guide](/documentation/8%20User%20Guide.md).
 
@@ -45,7 +45,7 @@ For detailed instructions, see the [User Guide](/documentation/8%20User%20Guide.
 
 ### Technical Overview
 
-Research Report Generator is built with modern web technologies and runs on Cloudflare Pages with a focus on performance, security, and offline capabilities.
+Research Brief Generator is built with modern web technologies and runs on Cloudflare Pages with a focus on performance, security, and offline capabilities.
 
 ### Tech Stack
 
@@ -61,7 +61,7 @@ Clone the repository and install dependencies:
 
 ```bash
 git clone <repository-url>
-cd research-report-app
+cd research-brief-app
 bun install
 ```
 
@@ -86,16 +86,16 @@ bunx wrangler pages deploy dist
 ### Project Structure
 
 ```plaintext
-research-report-app/
+research-brief-app/
 ├── src/
 │   ├── components/
 │   │   ├── HomePage.jsx
 │   │   ├── LibraryPage.jsx
-│   │   ├── ReportPage.jsx
+│   │   ├── BriefPage.jsx
 │   │   └── SettingsPage.jsx
 │   ├── utils/
 │   │   ├── api.js
-│   │   └── report.js
+│   │   └── brief.js
 │   ├── db.js
 │   ├── index.css
 │   └── App.jsx

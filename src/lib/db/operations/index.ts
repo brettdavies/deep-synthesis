@@ -1,3 +1,3 @@
 export { PaperOperations } from './papers';
-export { ReportOperations } from './reports';
+export { BriefOperations } from './briefs';
 export { SettingOperations } from './settings'; 
