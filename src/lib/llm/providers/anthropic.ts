@@ -5,7 +5,7 @@ import { ANTHROPIC_MODELS } from './anthropic-models';
 const ANTHROPIC_CONFIG: ProviderConfig = {
   name: 'Anthropic',
   requiresKey: true,
-  defaultModel: 'claude-3-haiku-20240307',
+  defaultModel: 'claude-3-5-haiku-latest',
   endpoints: {
     chat: 'https://api.anthropic.com/v1/messages',
   },
@@ -23,55 +23,38 @@ export class AnthropicProvider extends BaseLLMProvider {
     }
 
     try {
-      // Anthropic provides a models endpoint to list available models
-      const response = await fetch('https://api.anthropic.com/v1/models', {
-        headers: {
-          'x-api-key': this.settings.apiKey,
-          'Content-Type': 'application/json',
-          'anthropic-version': '2023-06-01',
-        },
-      });
+      console.log('[Anthropic] Fetching available models...');
+      const headers = {
+        'x-api-key': this.settings.apiKey,
+        'anthropic-version': '2023-01-01', // Updated to latest API version
+      };
 
-      if (!response.ok) {
-        console.error('Failed to fetch Anthropic models:', await response.text());
-        return this.getModels(); // Fallback to configured models
-      }
+      // Use the base makeGetRequest method for consistent logging
+      const response = await this.makeGetRequest(
+        'https://api.anthropic.com/v1/models',
+        headers
+      );
 
       const data = await response.json();
-      const availableModelIds = new Set(data.models.map((model: any) => model.id));
       
-      // Filter our config models to only include those the API key has access to
-      const availableConfigModels = this.getModels().filter(model => 
-        availableModelIds.has(model.id)
-      );
-      
-      // Add any models from the API that aren't in our config
-      const configModelIds = new Set(this.getModels().map(model => model.id));
-      const additionalModels = data.models
-        .filter((model: any) => !configModelIds.has(model.id) && model.id.includes('claude'))
-        .map((model: any) => ({
-          id: model.id,
-          name: model.name || model.id.replace(/-/g, ' ').replace(/(\w)(\w*)/g, (_, first, rest) => 
-            first.toUpperCase() + rest
-          ),
-          provider: 'Anthropic',
+      // Use the base class method to process models with a custom mapper
+      return this.processModelListResponse(
+        data.models, 
+        'id', 
+        (model: any) => ({
           capabilities: {
-            maxTokens: model.max_tokens || 100000,
-            contextWindow: model.context_window || 100000,
+            maxTokens: model.max_tokens_to_sample || 4096,
+            contextWindow: model.context_window || 8192,
             streaming: true,
-            functionCalling: model.id.includes('claude-3'),
-            vision: model.id.includes('claude-3'),
+            functionCalling: model.id.includes('claude-3') || model.id.includes('claude-3.5') || model.id.includes('claude-3.7'),
+            vision: model.id.includes('claude-3') || model.id.includes('claude-3.5') || model.id.includes('claude-3.7'),
           },
           costPer1kTokens: {
-            // Use default pricing based on model tier
-            input: model.id.includes('opus') ? 0.015 : 
-                  model.id.includes('sonnet') ? 0.003 : 0.00025,
-            output: model.id.includes('opus') ? 0.075 : 
-                   model.id.includes('sonnet') ? 0.015 : 0.00125,
+            input: 0.0025, // Default pricing (will be approximate)
+            output: 0.0125, // Default pricing (will be approximate)
           },
-        }));
-      
-      return [...availableConfigModels, ...additionalModels];
+        })
+      );
     } catch (error) {
       console.error('Error fetching Anthropic models:', error);
       return this.getModels(); // Fallback to configured models
@@ -80,26 +63,29 @@ export class AnthropicProvider extends BaseLLMProvider {
 
   async validateKey(key: string): Promise<boolean> {
     try {
-      const response = await fetch(this.config.endpoints.chat, {
-        method: 'POST',
-        headers: {
-          'x-api-key': key,
-          'Content-Type': 'application/json',
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model: this.config.defaultModel,
-          messages: [{ role: 'user', content: 'test' }],
-          max_tokens: 10,
-        }),
-      });
-
-      if (!response.ok) {
+      console.log('[Anthropic] Validating API key...');
+      
+      // Due to CORS restrictions in browsers, we can't directly call the Anthropic API
+      // Instead, check only key format for basic validation
+      if (!key || typeof key !== 'string' || key.trim().length < 50) {
+        console.error('[Anthropic] Invalid API key format');
         return false;
       }
-
+      
+      // Check if key has the expected Anthropic key prefix
+      if (!key.startsWith('sk-ant-')) {
+        console.error('[Anthropic] API key does not have the expected format (should start with sk-ant-)');
+        return false;
+      }
+      
+      console.log('[Anthropic] API key format appears valid');
+      
+      // In a browser context without a proxy, we can't fully validate the key
+      // We'll assume the key is valid if the format is correct
+      // A real validation will happen on the first actual API call
       return true;
     } catch (error) {
+      console.error('Error validating Anthropic API key:', error);
       return false;
     }
   }

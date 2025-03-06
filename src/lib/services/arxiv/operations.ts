@@ -5,8 +5,16 @@ import { ensureHttps } from '../../utils/network/url';
 import type { ArxivSearchParams, ArxivSearchResponse, ArxivFeed, ArxivEntry } from './types';
 import { apiClient } from '../../api';
 
-// Base URL for arXiv API
-const ARXIV_API_URL = 'https://export.arxiv.org/api/query';
+/**
+ * Generate a web URL for arXiv search from API query string
+ * @param queryString Query string in API format
+ * @returns A URL that can be used in browser to view search results on arXiv website
+ */
+export function getArxivSearchUrl(queryString: string): string {
+  // Convert the API query format to web search format
+  const webSearchQuery = queryString.replace(/\+/g, '%20');
+  return `https://arxiv.org/search/?query=${encodeURIComponent(webSearchQuery)}&searchtype=all`;
+}
 
 /**
  * Search for papers on arXiv

@@ -64,6 +64,7 @@ export function useLLM() {
       temperature?: number;
       maxTokens?: number;
       stream?: boolean;
+      reasoningEffort?: 'high' | 'medium' | 'low';
     }
   ): Promise<LLMResponse> => {
     setLoading(true);
@@ -83,6 +84,7 @@ export function useLLM() {
         temperature: options?.temperature ?? 0.7,
         maxTokens: options?.maxTokens,
         stream: options?.stream,
+        reasoningEffort: options?.reasoningEffort,
       };
 
       const response = await provider.chat(request);

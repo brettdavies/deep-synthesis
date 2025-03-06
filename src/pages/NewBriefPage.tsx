@@ -23,6 +23,9 @@ import {
   faFileCode
 } from '@fortawesome/free-solid-svg-icons';
 import toast from 'react-hot-toast';
+import QueryRefinement from '@/components/briefs/QueryRefinement';
+import SearchQueryGenerator from '@/components/briefs/SearchQueryGenerator';
+import PaperSelector from '@/components/briefs/PaperSelector';
 
 // Extended Paper type with selected property
 type PaperWithSelection = Paper & { selected?: boolean };
@@ -57,6 +60,10 @@ const NewBriefPage: React.FC = () => {
   const [refinedQuery, setRefinedQuery] = useState('');
   const [selectedPapers, setSelectedPapers] = useState<PaperWithSelection[]>([]);
   
+  // Query refinement state
+  const [showQueryInput, setShowQueryInput] = useState(true);
+  const [showQueryRefinement, setShowQueryRefinement] = useState(false);
+  
   // Mark a step as complete and advance to the next step
   const completeStep = (step: number) => {
     const newStatus = { ...stepsStatus };
@@ -66,601 +73,273 @@ const NewBriefPage: React.FC = () => {
     setCurrentStep(step + 1);
   };
 
-  // Step 1: Find papers
-  const handleFindPapers = async (e: React.FormEvent) => {
+  // Handle initial query submission
+  const handleInitialQuery = (e: React.FormEvent) => {
     e.preventDefault();
-    
     if (!query.trim()) return;
     
-    setIsLoading(true);
-    setProgress(0);
-    setStatusMessage('Searching arXiv for papers...');
-    
-    try {
-      // Convert paperCount to number
-      const maxResults = parseInt(paperCount);
-      
-      // Search arXiv for papers
-      const searchResults = await searchArxiv({
-        query: query.trim(),
-        maxResults,
-        sortBy: 'relevance',
-      });
-      
-      // Update progress
-      setProgress(40);
-      setStatusMessage(`Found ${searchResults.papers.length} papers. Processing...`);
-      
-      // Store papers in IndexedDB
-      const papers = searchResults.papers;
-      const progressIncrement = 40 / papers.length;
-      
-      for (let i = 0; i < papers.length; i++) {
-        const paper = papers[i];
-        
-        // Update status message
-        setStatusMessage(`Processing paper ${i + 1} of ${papers.length}...`);
-        
-        // Store paper in IndexedDB
-        await PaperOperations.create({
-          ...paper,
-          pdfDownloaded: false,
-          pdfDownloadProgress: undefined
-        });
-        
-        // Update progress
-        setProgress(40 + (i + 1) * progressIncrement);
-      }
-      
-      // Set papers for the next step
-      setPapers(papers);
-      
-      // Complete step 1 and move to step 2
-      completeStep(1);
-      setProgress(100);
-      setIsLoading(false);
-    } catch (error) {
-      console.error('Error finding papers:', error);
-      setStatusMessage('Error finding papers. Please try again.');
-      
-      // Show error toast notification
-      toast.error(`Failed to find papers: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      
-      setIsLoading(false);
-    }
+    setShowQueryInput(false);
+    setShowQueryRefinement(true);
+  };
+  
+  // Handle refined query from the QueryRefinement component
+  const handleRefinedQuery = (refined: string) => {
+    setRefinedQuery(refined);
+    setShowQueryRefinement(false);
+    completeStep(1);
   };
 
-  // Step 2: Refine query with AI
-  const handleRefineQuery = async () => {
-    setIsLoading(true);
-    setProgress(0);
-    setStatusMessage('Refining your query with AI...');
-    
-    try {
-      // Mockup for AI refinement - in production, this would call the AI service
-      setProgress(50);
-      
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Set refined query (mockup)
-      const aiRefinedQuery = `${query} (focusing on most recent developments and key breakthroughs)`;
-      setRefinedQuery(aiRefinedQuery);
-      
-      // Complete step 2 and move to step 3
-      completeStep(2);
-      setProgress(100);
-      setIsLoading(false);
-    } catch (error) {
-      console.error('Error refining query:', error);
-      setStatusMessage('Error refining query. Please try again.');
-      
-      // Show error toast notification
-      toast.error(`Failed to refine query: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      
-      setIsLoading(false);
-    }
+  // Handle papers found by the SearchQueryGenerator
+  const handlePapersFound = (foundPapers: Paper[]) => {
+    setPapers(foundPapers.map(paper => ({ ...paper, selected: false })));
+    completeStep(2);
   };
 
-  // Step 3: Select and rank papers
-  const handlePaperSelection = (paperId: string) => {
-    setPapers(currentPapers => 
-      currentPapers.map(paper => 
-        paper.id === paperId 
-          ? { ...paper, selected: !paper.selected } 
-          : paper
-      )
-    );
-  };
-
-  const handleConfirmSelection = () => {
-    const selected = papers.filter(paper => paper.selected);
-    setSelectedPapers(selected);
-    
-    if (selected.length === 0) {
-      toast.error('Please select at least one paper');
-      return;
-    }
-    
-    // Complete step 3 and move to step 4
+  // Handle paper selection confirmation
+  const handlePaperSelectionConfirmed = (selectedPapers: Paper[]) => {
+    setSelectedPapers(selectedPapers);
     completeStep(3);
   };
-
+  
   // Step 4: Generate brief
   const handleGenerateBrief = async () => {
     setIsLoading(true);
     setProgress(0);
-    setStatusMessage('Generating brief...');
+    setStatusMessage('Generating research brief...');
     
     try {
+      // Prepare papers for brief
+      const paperContents = selectedPapers.map(paper => ({
+        title: paper.title,
+        abstract: paper.abstract,
+        authors: paper.authors.join(', '),
+        year: paper.year
+      }));
+      
       // Update progress
       setProgress(20);
-      setStatusMessage('Creating brief...');
+      setStatusMessage('Synthesizing content from selected papers...');
       
-      // Create a new brief
-      const briefId = await BriefOperations.create({
-        title: `Brief: ${refinedQuery || query}`,
-        query: refinedQuery || query,
+      // Generate brief title
+      const briefTitle = refinedQuery.length > 50 
+        ? refinedQuery.substring(0, 50) + '...' 
+        : refinedQuery;
+      
+      // Create brief object
+      const briefId = crypto.randomUUID();
+      const brief = {
+        id: briefId,
+        title: briefTitle,
+        query: refinedQuery,
+        review: JSON.stringify(paperContents), // This is a placeholder, in a real app you would generate the review content
         references: selectedPapers.map(paper => ({
           paperId: paper.id,
           text: `${paper.authors.join(', ')}. ${paper.title}. ${paper.year}.`,
-          pdfUrl: paper.pdfUrl,
+          pdfUrl: paper.pdfUrl
         })),
-        bibtex: selectedPapers.map(paper => paper.bibtex).join('\n\n'),
-        review: '',
+        bibtex: '', // Placeholder
         date: new Date(),
-      });
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
       
-      // Complete progress
+      // Save brief to database
+      await BriefOperations.create(brief);
+      
+      // Update progress
       setProgress(100);
-      setStatusMessage('Brief generated!');
+      setStatusMessage('Brief generated successfully.');
       
-      // Navigate to the brief page
-      setTimeout(() => {
-        setIsLoading(false);
-        navigate(`/brief/${briefId}`);
-      }, 500);
+      // Navigate to brief page
+      navigate(`/briefs/${briefId}`);
+      
     } catch (error) {
-      console.error('Error generating brief:', error);
-      setStatusMessage('Error generating brief. Please try again.');
-      
-      // Show error toast notification
-      toast.error(`Failed to generate brief: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      
       setIsLoading(false);
+      toast.error('Error generating brief: ' + (error as Error).message);
+      console.error('Error generating brief:', error);
     }
   };
-
-  // Render step content based on current step
+  
+  // Render content based on current step
   const renderStepContent = () => {
     switch (currentStep) {
       case 1:
         return (
-          <Card className="shadow-lg w-full">
-            <CardHeader>
-              <CardTitle className="text-2xl">Step 1: Find Papers</CardTitle>
-              <CardDescription>
-                Enter your research topic to search for relevant papers
-              </CardDescription>
-            </CardHeader>
-            
-            <CardContent>
-              <form onSubmit={handleFindPapers} className="space-y-6">
-                {/* Research Topic */}
+          <div className="space-y-8">
+            {showQueryInput && (
+              <form onSubmit={handleInitialQuery} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="query" className="text-base">Research Topic</Label>
+                  <Label htmlFor="query">Research Query</Label>
                   <Input
                     id="query"
-                    placeholder="e.g., Recent advances in quantum computing"
+                    placeholder="Enter your research question or topic"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    disabled={isLoading}
-                    className="h-12"
+                    className="w-full"
                     required
                   />
                 </div>
-
-                {/* Keywords */}
-                <div className="space-y-2">
-                  <Label htmlFor="keywords" className="text-base">Keywords (Optional)</Label>
-                  <Input
-                    id="keywords"
-                    placeholder="e.g., hardware, entanglement"
-                    value={keywords}
-                    onChange={(e) => setKeywords(e.target.value)}
-                    disabled={isLoading}
-                    className="h-12"
-                  />
-                </div>
-
-                {/* Paper Count */}
-                <div className="space-y-2">
-                  <Label htmlFor="paperCount" className="text-base">Number of Papers</Label>
-                  <Select 
-                    value={paperCount} 
-                    onValueChange={setPaperCount}
-                    disabled={isLoading}
-                  >
-                    <SelectTrigger id="paperCount" className="h-12">
-                      <SelectValue placeholder="Select number of papers" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="5">5 papers</SelectItem>
-                      <SelectItem value="10">10 papers</SelectItem>
-                      <SelectItem value="15">15 papers</SelectItem>
-                      <SelectItem value="20">20 papers</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Advanced Options */}
-                <Collapsible className="w-full">
-                  <CollapsibleTrigger asChild>
-                    <Button variant="ghost" className="w-full justify-between">
-                      Advanced Options
-                      <FontAwesomeIcon icon={faChevronDown} className="h-4 w-4" />
-                    </Button>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="p-4 space-y-4 bg-gray-50 dark:bg-gray-800 rounded-lg mt-2">
-                    <p className="text-sm text-gray-500">Advanced options coming soon...</p>
-                  </CollapsibleContent>
-                </Collapsible>
-
-                {/* Progress Indicator */}
-                {isLoading && (
-                  <div className="space-y-3 bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
-                    <div className="flex justify-between text-sm">
-                      <span className="font-medium">{statusMessage}</span>
-                      <span className="font-medium">{progress}%</span>
-                    </div>
-                    <Progress value={progress} className="w-full h-2" />
-                  </div>
-                )}
-
-                {/* Submit Button */}
-                <Button 
-                  type="submit" 
-                  className="w-full h-12 text-base"
-                  disabled={isLoading || !query.trim()}
-                >
-                  {isLoading ? (
-                    <>
-                      <Loading size="small" message="" className="mr-2" />
-                      Processing...
-                    </>
-                  ) : (
-                    <>
-                      <FontAwesomeIcon icon={faSearch} className="mr-2 h-4 w-4" />
-                      Find Papers
-                    </>
-                  )}
+                <Button type="submit" disabled={!query.trim()}>
+                  <FontAwesomeIcon icon={faRobot} className="mr-2" />
+                  Refine Query with AI
                 </Button>
               </form>
-            </CardContent>
-          </Card>
+            )}
+            
+            {showQueryRefinement && (
+              <QueryRefinement
+                initialQuery={query}
+                onQueryRefined={handleRefinedQuery}
+                onBack={() => {
+                  setShowQueryRefinement(false);
+                  setShowQueryInput(true);
+                }}
+              />
+            )}
+          </div>
         );
-
+      
       case 2:
         return (
-          <Card className="shadow-lg w-full">
-            <CardHeader>
-              <CardTitle className="text-2xl">Step 2: Refine Your Research Question</CardTitle>
-              <CardDescription>
-                Use AI to refine your research question for better results
-              </CardDescription>
-            </CardHeader>
-            
-            <CardContent className="space-y-6">
-              <div className="space-y-4">
-                <Label className="text-base">Original Query</Label>
-                <div className="p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
-                  <p className="text-base">{query}</p>
-                </div>
-              </div>
-              
-              <div className="space-y-4">
-                <Label className="text-base">Papers Found</Label>
-                <div className="p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
-                  <p className="text-base">{papers.length} papers found</p>
-                </div>
-              </div>
-              
-              {/* AI Interaction Chat (Mockup) */}
-              <div className="space-y-4">
-                <Label className="text-base">AI Assistance</Label>
-                <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 space-y-4">
-                  <div className="flex items-start space-x-3">
-                    <FontAwesomeIcon icon={faRobot} className="h-5 w-5 text-blue-500 mt-1" />
-                    <div className="bg-blue-50 dark:bg-blue-900/30 p-3 rounded-lg text-sm flex-1">
-                      I can help refine your query for better results. Would you like to focus on specific aspects of "{query}"?
-                    </div>
-                  </div>
-                  
-                  {/* AI Chat Input (Mockup) */}
-                  <div className="flex">
-                    <Input 
-                      placeholder="Ask the AI to refine your query..."
-                      className="rounded-r-none"
-                      disabled={isLoading}
-                    />
-                    <Button 
-                      className="rounded-l-none"
-                      disabled={isLoading}
-                      onClick={handleRefineQuery}
-                    >
-                      Send
-                    </Button>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Progress Indicator */}
-              {isLoading && (
-                <div className="space-y-3 bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
-                  <div className="flex justify-between text-sm">
-                    <span className="font-medium">{statusMessage}</span>
-                    <span className="font-medium">{progress}%</span>
-                  </div>
-                  <Progress value={progress} className="w-full h-2" />
-                </div>
-              )}
-              
-              {/* Controls */}
-              <div className="flex justify-between">
-                <Button
-                  variant="outline"
-                  onClick={() => setCurrentStep(1)}
-                  disabled={isLoading}
-                >
-                  Back
-                </Button>
-                
-                <Button
-                  onClick={handleRefineQuery}
-                  disabled={isLoading}
-                >
-                  {isLoading ? (
-                    <>
-                      <Loading size="small" message="" className="mr-2" />
-                      Processing...
-                    </>
-                  ) : (
-                    'Use AI to Refine Query'
-                  )}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="space-y-8">
+            <SearchQueryGenerator
+              refinedQuery={refinedQuery}
+              onSearchComplete={handlePapersFound}
+              onCancel={() => {
+                setShowQueryRefinement(true);
+                setCurrentStep(1);
+                const newStatus = { ...stepsStatus };
+                newStatus[1] = 'active';
+                newStatus[2] = 'pending';
+                setStepsStatus(newStatus);
+              }}
+            />
+          </div>
         );
-
+      
       case 3:
         return (
-          <Card className="shadow-lg w-full">
-            <CardHeader>
-              <CardTitle className="text-2xl">Step 3: Select Papers</CardTitle>
-              <CardDescription>
-                Choose which papers to include in your research brief
-              </CardDescription>
-            </CardHeader>
-            
-            <CardContent className="space-y-6">
-              <div className="space-y-4">
-                <Label className="text-base">Refined Query</Label>
-                <div className="p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
-                  <p className="text-base">{refinedQuery || query}</p>
-                </div>
-              </div>
-              
-              {/* Paper Selection List */}
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <Label className="text-base">Select Papers</Label>
-                  <span className="text-sm text-gray-500">
-                    {papers.filter(p => p.selected).length} of {papers.length} selected
-                  </span>
-                </div>
-                
-                <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
-                  {papers.map(paper => (
-                    <div 
-                      key={paper.id}
-                      className={`p-4 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer transition-colors ${paper.selected ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700' : ''}`}
-                      onClick={() => handlePaperSelection(paper.id)}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="space-y-2 flex-1">
-                          <h3 className="font-medium">{paper.title}</h3>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
-                            {paper.authors.join(', ')}
-                          </p>
-                          <p className="text-sm">{paper.abstract.substring(0, 150)}...</p>
-                        </div>
-                        
-                        <div className="ml-4 flex-shrink-0">
-                          <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${paper.selected ? 'border-blue-500 bg-blue-500 text-white' : 'border-gray-300 dark:border-gray-600'}`}>
-                            {paper.selected && (
-                              <FontAwesomeIcon icon={faCheckCircle} className="h-4 w-4" />
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              
-              {/* Controls */}
-              <div className="flex justify-between">
-                <Button
-                  variant="outline"
-                  onClick={() => setCurrentStep(2)}
-                >
-                  Back
-                </Button>
-                
-                <Button
-                  onClick={handleConfirmSelection}
-                  disabled={papers.filter(p => p.selected).length === 0}
-                >
-                  Continue
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="space-y-8">
+            <PaperSelector 
+              papers={papers}
+              onSelectionConfirmed={handlePaperSelectionConfirmed}
+              onBack={() => {
+                setCurrentStep(2);
+                const newStatus = { ...stepsStatus };
+                newStatus[2] = 'active';
+                newStatus[3] = 'pending';
+                setStepsStatus(newStatus);
+              }}
+            />
+          </div>
         );
-
+      
       case 4:
         return (
-          <Card className="shadow-lg w-full">
-            <CardHeader>
-              <CardTitle className="text-2xl">Step 4: Generate Brief</CardTitle>
-              <CardDescription>
-                Create your research brief based on selected papers
-              </CardDescription>
-            </CardHeader>
-            
-            <CardContent className="space-y-6">
-              <div className="space-y-4">
-                <Label className="text-base">Research Focus</Label>
-                <div className="p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
-                  <p className="text-base">{refinedQuery || query}</p>
-                </div>
-              </div>
+          <div className="space-y-8">
+            <div className="space-y-4">
+              <h3 className="text-lg font-medium">Generate Research Brief</h3>
+              <p className="text-gray-500">
+                You've selected {selectedPapers.length} papers for your research brief.
+                The AI will now synthesize these papers to answer your query:
+              </p>
               
-              <div className="space-y-4">
-                <Label className="text-base">Selected Papers</Label>
-                <div className="p-4 rounded-lg bg-gray-50 dark:bg-gray-800 max-h-[200px] overflow-y-auto">
-                  <ul className="space-y-2 list-disc list-inside">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Research Query</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p>{refinedQuery}</p>
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardHeader>
+                  <CardTitle>Selected Papers</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ul className="list-disc pl-5 space-y-2">
                     {selectedPapers.map(paper => (
-                      <li key={paper.id} className="text-sm">
-                        {paper.title}
-                      </li>
+                      <li key={paper.id}>{paper.title} ({paper.year})</li>
                     ))}
                   </ul>
-                </div>
-              </div>
+                </CardContent>
+              </Card>
               
-              {/* Brief Options */}
+              <Button 
+                type="button" 
+                onClick={handleGenerateBrief}
+                disabled={isLoading}
+              >
+                <FontAwesomeIcon icon={faFileCode} className="mr-2" />
+                Generate Brief
+              </Button>
+            </div>
+            
+            {isLoading && (
               <div className="space-y-4">
-                <Label htmlFor="briefStyle" className="text-base">Brief Style</Label>
-                <Select defaultValue="standard">
-                  <SelectTrigger id="briefStyle" className="h-12">
-                    <SelectValue placeholder="Select brief style" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="standard">Standard Academic</SelectItem>
-                    <SelectItem value="simplified">Simplified</SelectItem>
-                    <SelectItem value="detailed">Detailed</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Progress value={progress} className="w-full" />
+                <p className="text-sm text-gray-500">{statusMessage}</p>
               </div>
-              
-              {/* Progress Indicator */}
-              {isLoading && (
-                <div className="space-y-3 bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
-                  <div className="flex justify-between text-sm">
-                    <span className="font-medium">{statusMessage}</span>
-                    <span className="font-medium">{progress}%</span>
-                  </div>
-                  <Progress value={progress} className="w-full h-2" />
-                </div>
-              )}
-              
-              {/* Controls */}
-              <div className="flex justify-between">
-                <Button
-                  variant="outline"
-                  onClick={() => setCurrentStep(3)}
-                  disabled={isLoading}
-                >
-                  Back
-                </Button>
-                
-                <Button
-                  onClick={handleGenerateBrief}
-                  disabled={isLoading || selectedPapers.length === 0}
-                >
-                  {isLoading ? (
-                    <>
-                      <Loading size="small" message="" className="mr-2" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <FontAwesomeIcon icon={faFileCode} className="mr-2 h-4 w-4" />
-                      Generate Brief
-                    </>
-                  )}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+            )}
+          </div>
         );
-
+        
       default:
         return null;
     }
   };
-
+  
   return (
-    <div className="h-full flex flex-col overflow-auto">
-      <div className="space-y-8 py-6">
-        <div className="text-center space-y-4">
-          <h1 className="text-3xl font-bold tracking-tight">Create a New Research Brief</h1>
-          <p className="text-gray-600 dark:text-gray-300">
-            Follow these steps to create a comprehensive literature review
-          </p>
-        </div>
-        
-        {/* Steps Progress */}
-        <div className="flex flex-col md:flex-row gap-4 mb-8">
+    <div className="container py-8 max-w-4xl">
+      <h1 className="text-3xl font-bold mb-8">Create Research Brief</h1>
+      
+      <div className="mb-8">
+        <div className="flex items-center">
           {[1, 2, 3, 4].map((step) => (
-            <div 
-              key={step}
-              className="flex-1"
-            >
+            <React.Fragment key={step}>
               <div 
-                className={`flex items-center p-4 rounded-lg border ${
-                  stepsStatus[step] === 'active' 
-                    ? 'bg-blue-50 border-blue-300 dark:bg-blue-900/30 dark:border-blue-700' 
-                    : stepsStatus[step] === 'completed'
-                    ? 'bg-green-50 border-green-300 dark:bg-green-900/30 dark:border-green-700'
-                    : 'bg-gray-50 border-gray-200 dark:bg-gray-800 dark:border-gray-700'
+                className={`relative flex items-center justify-center w-10 h-10 rounded-full border-2 ${
+                  stepsStatus[step] === 'completed' 
+                    ? 'bg-primary text-white border-primary' 
+                    : stepsStatus[step] === 'active'
+                    ? 'border-primary text-primary' 
+                    : 'border-gray-300 text-gray-400'
                 }`}
               >
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center mr-3 ${
-                  stepsStatus[step] === 'active' 
-                    ? 'bg-blue-500 text-white' 
-                    : stepsStatus[step] === 'completed'
-                    ? 'bg-green-500 text-white'
-                    : 'bg-gray-300 text-gray-600 dark:bg-gray-600 dark:text-gray-300'
-                }`}>
-                  {stepsStatus[step] === 'completed' ? (
-                    <FontAwesomeIcon icon={faCheckCircle} className="h-4 w-4" />
-                  ) : stepsStatus[step] === 'active' ? (
-                    <span>{step}</span>
-                  ) : (
-                    <span>{step}</span>
-                  )}
-                </div>
-                <div>
-                  <h3 className="font-medium text-sm">
-                    {step === 1 && 'Find Papers'}
-                    {step === 2 && 'Refine Query'}
-                    {step === 3 && 'Select Papers'}
-                    {step === 4 && 'Generate Brief'}
-                  </h3>
-                </div>
+                {stepsStatus[step] === 'completed' ? (
+                  <FontAwesomeIcon icon={faCheckCircle} />
+                ) : (
+                  <span>{step}</span>
+                )}
               </div>
-            </div>
+              
+              {step < 4 && (
+                <div 
+                  className={`flex-1 h-1 ${
+                    stepsStatus[step + 1] === 'completed' || stepsStatus[step] === 'completed'
+                      ? 'bg-primary'
+                      : 'bg-gray-300'
+                  }`}
+                />
+              )}
+            </React.Fragment>
           ))}
         </div>
         
-        {/* Current Step Content */}
-        <div className="flex-1 overflow-auto min-h-0">
-          {renderStepContent()}
+        <div className="flex justify-between mt-2">
+          <div className="text-sm font-medium w-10 text-center">Query</div>
+          <div className="text-sm font-medium w-10 text-center">Search</div>
+          <div className="text-sm font-medium w-10 text-center">Select</div>
+          <div className="text-sm font-medium w-10 text-center">Brief</div>
         </div>
       </div>
+      
+      <Card>
+        <CardContent className="p-6">
+          {renderStepContent()}
+        </CardContent>
+      </Card>
     </div>
   );
 };

@@ -1,0 +1,3767 @@
+On branch feature/brief-generator
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   package-lock.json
+	modified:   package.json
+	modified:   src/components/layout/Layout.tsx
+	modified:   src/lib/llm/base-provider.ts
+	modified:   src/lib/llm/providers/anthropic-models.ts
+	modified:   src/lib/llm/providers/anthropic.ts
+	modified:   src/lib/llm/providers/gemini.ts
+	modified:   src/lib/llm/providers/grok.ts
+	modified:   src/lib/llm/providers/openai.ts
+	modified:   src/lib/llm/providers/openrouter.ts
+	modified:   src/lib/llm/types.ts
+	modified:   src/lib/llm/use-llm.ts
+	modified:   src/lib/services/arxiv/operations.ts
+	modified:   src/pages/NewBriefPage.tsx
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	research_brief_implementation_plan.md
+	src/components/BriefGenerator.tsx
+	src/components/briefs/MessageList.tsx
+	src/components/briefs/PaperSelector.tsx
+	src/components/briefs/QueryRefinement.tsx
+	src/components/briefs/SearchQueryGenerator.tsx
+	src/components/ui/avatar.tsx
+	src/components/ui/skeleton.tsx
+	src/components/ui/textarea.tsx
+	src/lib/services/arxiv/query-generator.ts
+	src/lib/services/arxiv/rate-limiter.ts
+
+no changes added to commit (use "git add" and/or "git commit -a")
+
+Changes in files:
+diff --git a/package-lock.json b/package-lock.json
+index f2d73f3..b988ce0 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -14,6 +14,7 @@
+         "@hookform/resolvers": "^4.1.0",
+         "@radix-ui/react-accordion": "^1.1.2",
+         "@radix-ui/react-alert-dialog": "^1.1.6",
++        "@radix-ui/react-avatar": "^1.1.3",
+         "@radix-ui/react-checkbox": "^1.0.4",
+         "@radix-ui/react-collapsible": "^1.1.3",
+         "@radix-ui/react-dialog": "^1.1.6",
+@@ -1146,6 +1147,31 @@
+         }
+       }
+     },
++    "node_modules/@radix-ui/react-avatar": {
++      "version": "1.1.3",
++      "resolved": "https://registry.npmjs.org/@radix-ui/react-avatar/-/react-avatar-1.1.3.tgz",
++      "integrity": "sha512-Paen00T4P8L8gd9bNsRMw7Cbaz85oxiv+hzomsRZgFm2byltPFDtfcoqlWJ8GyZlIBWgLssJlzLCnKU0G0302g==",
++      "dependencies": {
++        "@radix-ui/react-context": "1.1.1",
++        "@radix-ui/react-primitive": "2.0.2",
++        "@radix-ui/react-use-callback-ref": "1.1.0",
++        "@radix-ui/react-use-layout-effect": "1.1.0"
++      },
++      "peerDependencies": {
++        "@types/react": "*",
++        "@types/react-dom": "*",
++        "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc",
++        "react-dom": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc"
++      },
++      "peerDependenciesMeta": {
++        "@types/react": {
++          "optional": true
++        },
++        "@types/react-dom": {
++          "optional": true
++        }
++      }
++    },
+     "node_modules/@radix-ui/react-checkbox": {
+       "version": "1.1.4",
+       "license": "MIT",
+diff --git a/package.json b/package.json
+index 6cb4165..6aab96d 100644
+--- a/package.json
++++ b/package.json
+@@ -19,6 +19,7 @@
+     "@hookform/resolvers": "^4.1.0",
+     "@radix-ui/react-accordion": "^1.1.2",
+     "@radix-ui/react-alert-dialog": "^1.1.6",
++    "@radix-ui/react-avatar": "^1.1.3",
+     "@radix-ui/react-checkbox": "^1.0.4",
+     "@radix-ui/react-collapsible": "^1.1.3",
+     "@radix-ui/react-dialog": "^1.1.6",
+diff --git a/src/components/layout/Layout.tsx b/src/components/layout/Layout.tsx
+index d77aa7c..884b1ce 100644
+--- a/src/components/layout/Layout.tsx
++++ b/src/components/layout/Layout.tsx
+@@ -25,7 +25,7 @@ const Layout: React.FC = () => {
+ 
+       <main className="flex-1 bg-background text-foreground overflow-auto h-screen">
+         <div className="p-6 h-full flex justify-center">
+-          <div className="w-[1024px] h-full">
++          <div className="w-full max-w-[90%] h-full">
+             <Outlet />
+           </div>
+         </div>
+diff --git a/src/lib/llm/base-provider.ts b/src/lib/llm/base-provider.ts
+index e52c0cf..ee541d6 100644
+--- a/src/lib/llm/base-provider.ts
++++ b/src/lib/llm/base-provider.ts
+@@ -142,20 +142,264 @@ export abstract class BaseLLMProvider implements LLMProvider {
+       headers['Authorization'] = `Bearer ${this.settings.apiKey}`;
+     }
+ 
+-    const response = await fetch(endpoint, {
+-      method: 'POST',
+-      headers,
+-      body: JSON.stringify(body)
++    // Log the request details for debugging (without exposing full API key)
++    console.log(`[${this.config.name}] Sending request to: ${endpoint}`);
++    console.log(`[${this.config.name}] Request headers:`, {
++      ...headers,
++      'Authorization': headers['Authorization'] ? 
++        `Bearer ${this.settings.apiKey?.substring(0, 4)}...${this.settings.apiKey?.substring(this.settings.apiKey.length - 4)}` : 
++        undefined
+     });
++    console.log(`[${this.config.name}] Request body:`, JSON.stringify(body, null, 2));
+ 
+-    if (!response.ok) {
+-      const error = await response.json();
+-      if (response.status === 401) {
+-        throw new LLMAuthError('Invalid API key');
++    try {
++      const response = await fetch(endpoint, {
++        method: 'POST',
++        headers,
++        body: JSON.stringify(body)
++      });
++
++      console.log(`[${this.config.name}] Response status:`, response.status);
++      
++      if (!response.ok) {
++        const error = await response.json();
++        console.error(`[${this.config.name}] Error response:`, error);
++        console.error(`[${this.config.name}] Full error details:`, JSON.stringify(error, null, 2));
++        
++        if (response.status === 401) {
++          throw new LLMAuthError('Invalid API key');
++        }
++        
++        // Extract the real error message if available
++        const errorMessage = error.error?.message || error.message || 'Request failed';
++        throw new LLMRequestError(errorMessage);
++      }
++
++      return response;
++    } catch (error) {
++      console.error(`[${this.config.name}] Request error:`, error);
++      throw error;
++    }
++  }
++
++  /**
++   * Make a GET request to the specified endpoint with proper logging
++   * @param endpoint The URL to make the request to
++   * @param customHeaders Any additional headers to include with the request
++   * @returns The fetch Response object
++   */
++  protected async makeGetRequest(
++    endpoint: string,
++    customHeaders: Record<string, string> = {}
++  ): Promise<Response> {
++    if (this.config.requiresKey && !this.settings.apiKey) {
++      throw new LLMConfigError('API key is required but not provided');
++    }
++
++    const headers: Record<string, string> = {
++      'Content-Type': 'application/json',
++      ...customHeaders,
++    };
++
++    // Add auth header based on the provider's pattern
++    if (this.settings.apiKey) {
++      headers['Authorization'] = `Bearer ${this.settings.apiKey}`;
++    }
++
++    // Log the request details for debugging (without exposing full API key)
++    console.log(`[${this.config.name}] Sending GET request to: ${endpoint}`);
++    console.log(`[${this.config.name}] Request headers:`, {
++      ...headers,
++      'Authorization': headers['Authorization'] ? 
++        `Bearer ${this.settings.apiKey?.substring(0, 4)}...${this.settings.apiKey?.substring(this.settings.apiKey.length - 4)}` : 
++        undefined
++    });
++
++    try {
++      const response = await fetch(endpoint, {
++        method: 'GET',
++        headers
++      });
++
++      console.log(`[${this.config.name}] Response status:`, response.status);
++      
++      if (!response.ok) {
++        try {
++          const error = await response.json();
++          console.error(`[${this.config.name}] Error response:`, error);
++          console.error(`[${this.config.name}] Full error details:`, JSON.stringify(error, null, 2));
++          
++          if (response.status === 401) {
++            throw new LLMAuthError('Invalid API key');
++          }
++          
++          // Extract the real error message if available
++          const errorMessage = error.error?.message || error.message || 'Request failed';
++          throw new LLMRequestError(errorMessage);
++        } catch (jsonError) {
++          // Handle case where response isn't JSON
++          const errorText = await response.text();
++          console.error(`[${this.config.name}] Error response (text):`, errorText);
++          throw new LLMRequestError(`Request failed with status ${response.status}`);
++        }
++      }
++
++      const responseData = await response.clone().json().catch(() => null);
++      if (responseData) {
++        console.log(`[${this.config.name}] Response data:`, JSON.stringify(responseData, null, 2));
++      }
++
++      return response;
++    } catch (error) {
++      console.error(`[${this.config.name}] Request error:`, error);
++      throw error;
++    }
++  }
++
++  // Add a helper method for validation requests that providers can use
++  protected async makeValidationRequest(
++    endpoint: string,
++    validationBody: any,
++    customHeaders: Record<string, string> = {},
++    apiKey: string
++  ): Promise<boolean> {
++    console.log(`[${this.config.name}] Validating API key...`);
++    
++    const headers: Record<string, string> = {
++      'Content-Type': 'application/json',
++      ...customHeaders,
++    };
++    
++    if (apiKey) {
++      // Default to Bearer token auth pattern, but only if no auth headers are provided
++      // and if Authorization isn't explicitly set as empty
++      if (!headers['Authorization'] && !headers['x-api-key'] && headers['Authorization'] !== '') {
++        headers['Authorization'] = `Bearer ${apiKey}`;
++      }
++      
++      // If Authorization is explicitly set as empty string, remove it to avoid sending invalid header
++      if (headers['Authorization'] === '') {
++        delete headers['Authorization'];
+       }
+-      throw new LLMRequestError(error.message || 'Request failed');
+     }
++    
++    console.log(`[${this.config.name}] Validation request headers:`, {
++      ...headers,
++      'Authorization': headers['Authorization'] ? 
++        headers['Authorization'].substring(0, 10) + '...' : undefined,
++      'x-api-key': headers['x-api-key'] ? 
++        'REDACTED' : undefined
++    });
++    
++    console.log(`[${this.config.name}] Validation request body:`, JSON.stringify(validationBody, null, 2));
++    
++    try {
++      const response = await fetch(endpoint, {
++        method: 'POST',
++        headers,
++        body: JSON.stringify(validationBody),
++        // Add CORS mode options to handle browser security restrictions
++        mode: 'cors',
++        credentials: 'omit'
++      });
+ 
+-    return response;
++      const responseStatus = response.status;
++      console.log(`[${this.config.name}] Validation response status: ${responseStatus}`);
++      
++      if (!response.ok) {
++        try {
++          const errorJson = await response.json();
++          console.error(`[${this.config.name}] Validation failed:`, errorJson);
++          return false;
++        } catch (e) {
++          const errorText = await response.text();
++          console.error(`[${this.config.name}] Validation failed (text):`, errorText);
++          return false;
++        }
++      }
++      
++      console.log(`[${this.config.name}] API key validation successful`);
++      return true;
++    } catch (error) {
++      console.error(`[${this.config.name}] Validation request error:`, error);
++      return false;
++    }
++  }
++
++  /**
++   * Helper method for providers without a models listing API
++   * Validates the API key and returns the configured models if valid
++   */
++  protected async getAvailableModelsWithoutListing(): Promise<ModelInfo[]> {
++    if (!this.settings.apiKey) {
++      return [];
++    }
++    
++    try {
++      console.log(`[${this.config.name}] Checking API key validity...`);
++      const isValid = await this.validateKey(this.settings.apiKey);
++      
++      if (!isValid) {
++        return [];
++      }
++      
++      return this.getModels();
++    } catch (error) {
++      console.error(`[${this.config.name}] Error checking models:`, error);
++      return [];
++    }
++  }
++
++  /**
++   * Helper method to standardize processing of model list responses
++   * @param models Array of model objects from the provider's API
++   * @param idProperty The property name that contains the model ID
++   * @param modelMapper Optional function to map API model data to ModelInfo format
++   * @returns Array of ModelInfo objects
++   */
++  protected processModelListResponse(
++    models: any[], 
++    idProperty: string = 'id',
++    modelMapper?: (model: any) => Partial<ModelInfo>
++  ): ModelInfo[] {
++    const availableModelIds = new Set(models.map(model => model[idProperty]));
++    
++    // Filter our configured models
++    const availableConfigModels = this.getModels().filter(model => 
++      availableModelIds.has(model.id)
++    );
++    
++    // Process additional models if a mapper is provided
++    if (modelMapper) {
++      const configModelIds = new Set(this.getModels().map(model => model.id));
++      const additionalModels = models
++        .filter(model => !configModelIds.has(model[idProperty]))
++        .map(model => {
++          const mappedModel = modelMapper(model);
++          return {
++            id: model[idProperty],
++            name: model.name || model[idProperty],
++            provider: this.config.name,
++            capabilities: {
++              maxTokens: 4096,
++              contextWindow: 4096,
++              streaming: false,
++              functionCalling: false,
++              vision: false,
++              ...mappedModel.capabilities
++            },
++            costPer1kTokens: {
++              input: 0.001,
++              output: 0.002,
++              ...mappedModel.costPer1kTokens
++            },
++            ...mappedModel
++          };
++        });
++      
++      return [...availableConfigModels, ...additionalModels];
++    }
++    
++    return availableConfigModels;
+   }
+ } 
+\ No newline at end of file
+diff --git a/src/lib/llm/providers/anthropic-models.ts b/src/lib/llm/providers/anthropic-models.ts
+index 3f52d7c..e5c5df0 100644
+--- a/src/lib/llm/providers/anthropic-models.ts
++++ b/src/lib/llm/providers/anthropic-models.ts
+@@ -6,8 +6,8 @@ import type { ModelInfo } from '../types';
+  */
+ export const ANTHROPIC_MODELS: ModelInfo[] = [
+   {
+-    id: 'claude-3-opus-20240229',
+-    name: 'Claude 3 Opus',
++    id: 'claude-3-7-sonnet-latest',
++    name: 'Claude 3.7 Sonnet',
+     provider: 'Anthropic',
+     capabilities: {
+       maxTokens: 200000,
+@@ -17,13 +17,13 @@ export const ANTHROPIC_MODELS: ModelInfo[] = [
+       vision: true,
+     },
+     costPer1kTokens: {
+-      input: 0.015,
+-      output: 0.075,
++      input: 0.003,
++      output: 0.015,
+     },
+   },
+   {
+-    id: 'claude-3-sonnet-20240229',
+-    name: 'Claude 3 Sonnet',
++    id: 'claude-3-5-sonnet-latest',
++    name: 'Claude 3.5 Sonnet',
+     provider: 'Anthropic',
+     capabilities: {
+       maxTokens: 200000,
+@@ -37,6 +37,39 @@ export const ANTHROPIC_MODELS: ModelInfo[] = [
+       output: 0.015,
+     },
+   },
++  {
++    id: 'claude-3-5-haiku-latest',
++    name: 'Claude 3.5 Haiku',
++    provider: 'Anthropic',
++    capabilities: {
++      maxTokens: 200000,
++      contextWindow: 200000,
++      streaming: true,
++      functionCalling: true,
++      vision: true,
++    },
++    costPer1kTokens: {
++      input: 0.0008,
++      output: 0.004,
++    },
++    isDefault: true,
++  },
++  {
++    id: 'claude-3-opus-latest',
++    name: 'Claude 3 Opus',
++    provider: 'Anthropic',
++    capabilities: {
++      maxTokens: 200000,
++      contextWindow: 200000,
++      streaming: true,
++      functionCalling: true,
++      vision: true,
++    },
++    costPer1kTokens: {
++      input: 0.015,
++      output: 0.075,
++    },
++  },
+   {
+     id: 'claude-3-haiku-20240307',
+     name: 'Claude 3 Haiku',
+diff --git a/src/lib/llm/providers/anthropic.ts b/src/lib/llm/providers/anthropic.ts
+index b5df941..0106688 100644
+--- a/src/lib/llm/providers/anthropic.ts
++++ b/src/lib/llm/providers/anthropic.ts
+@@ -5,7 +5,7 @@ import { ANTHROPIC_MODELS } from './anthropic-models';
+ const ANTHROPIC_CONFIG: ProviderConfig = {
+   name: 'Anthropic',
+   requiresKey: true,
+-  defaultModel: 'claude-3-haiku-20240307',
++  defaultModel: 'claude-3-5-haiku-latest',
+   endpoints: {
+     chat: 'https://api.anthropic.com/v1/messages',
+   },
+@@ -23,55 +23,38 @@ export class AnthropicProvider extends BaseLLMProvider {
+     }
+ 
+     try {
+-      // Anthropic provides a models endpoint to list available models
+-      const response = await fetch('https://api.anthropic.com/v1/models', {
+-        headers: {
+-          'x-api-key': this.settings.apiKey,
+-          'Content-Type': 'application/json',
+-          'anthropic-version': '2023-06-01',
+-        },
+-      });
++      console.log('[Anthropic] Fetching available models...');
++      const headers = {
++        'x-api-key': this.settings.apiKey,
++        'anthropic-version': '2023-01-01', // Updated to latest API version
++      };
+ 
+-      if (!response.ok) {
+-        console.error('Failed to fetch Anthropic models:', await response.text());
+-        return this.getModels(); // Fallback to configured models
+-      }
++      // Use the base makeGetRequest method for consistent logging
++      const response = await this.makeGetRequest(
++        'https://api.anthropic.com/v1/models',
++        headers
++      );
+ 
+       const data = await response.json();
+-      const availableModelIds = new Set(data.models.map((model: any) => model.id));
+-      
+-      // Filter our config models to only include those the API key has access to
+-      const availableConfigModels = this.getModels().filter(model => 
+-        availableModelIds.has(model.id)
+-      );
+       
+-      // Add any models from the API that aren't in our config
+-      const configModelIds = new Set(this.getModels().map(model => model.id));
+-      const additionalModels = data.models
+-        .filter((model: any) => !configModelIds.has(model.id) && model.id.includes('claude'))
+-        .map((model: any) => ({
+-          id: model.id,
+-          name: model.name || model.id.replace(/-/g, ' ').replace(/(\w)(\w*)/g, (_, first, rest) => 
+-            first.toUpperCase() + rest
+-          ),
+-          provider: 'Anthropic',
++      // Use the base class method to process models with a custom mapper
++      return this.processModelListResponse(
++        data.models, 
++        'id', 
++        (model: any) => ({
+           capabilities: {
+-            maxTokens: model.max_tokens || 100000,
+-            contextWindow: model.context_window || 100000,
++            maxTokens: model.max_tokens_to_sample || 4096,
++            contextWindow: model.context_window || 8192,
+             streaming: true,
+-            functionCalling: model.id.includes('claude-3'),
+-            vision: model.id.includes('claude-3'),
++            functionCalling: model.id.includes('claude-3') || model.id.includes('claude-3.5') || model.id.includes('claude-3.7'),
++            vision: model.id.includes('claude-3') || model.id.includes('claude-3.5') || model.id.includes('claude-3.7'),
+           },
+           costPer1kTokens: {
+-            // Use default pricing based on model tier
+-            input: model.id.includes('opus') ? 0.015 : 
+-                  model.id.includes('sonnet') ? 0.003 : 0.00025,
+-            output: model.id.includes('opus') ? 0.075 : 
+-                   model.id.includes('sonnet') ? 0.015 : 0.00125,
++            input: 0.0025, // Default pricing (will be approximate)
++            output: 0.0125, // Default pricing (will be approximate)
+           },
+-        }));
+-      
+-      return [...availableConfigModels, ...additionalModels];
++        })
++      );
+     } catch (error) {
+       console.error('Error fetching Anthropic models:', error);
+       return this.getModels(); // Fallback to configured models
+@@ -80,26 +63,29 @@ export class AnthropicProvider extends BaseLLMProvider {
+ 
+   async validateKey(key: string): Promise<boolean> {
+     try {
+-      const response = await fetch(this.config.endpoints.chat, {
+-        method: 'POST',
+-        headers: {
+-          'x-api-key': key,
+-          'Content-Type': 'application/json',
+-          'anthropic-version': '2023-06-01',
+-        },
+-        body: JSON.stringify({
+-          model: this.config.defaultModel,
+-          messages: [{ role: 'user', content: 'test' }],
+-          max_tokens: 10,
+-        }),
+-      });
+-
+-      if (!response.ok) {
++      console.log('[Anthropic] Validating API key...');
++      
++      // Due to CORS restrictions in browsers, we can't directly call the Anthropic API
++      // Instead, check only key format for basic validation
++      if (!key || typeof key !== 'string' || key.trim().length < 50) {
++        console.error('[Anthropic] Invalid API key format');
+         return false;
+       }
+-
++      
++      // Check if key has the expected Anthropic key prefix
++      if (!key.startsWith('sk-ant-')) {
++        console.error('[Anthropic] API key does not have the expected format (should start with sk-ant-)');
++        return false;
++      }
++      
++      console.log('[Anthropic] API key format appears valid');
++      
++      // In a browser context without a proxy, we can't fully validate the key
++      // We'll assume the key is valid if the format is correct
++      // A real validation will happen on the first actual API call
+       return true;
+     } catch (error) {
++      console.error('Error validating Anthropic API key:', error);
+       return false;
+     }
+   }
+diff --git a/src/lib/llm/providers/gemini.ts b/src/lib/llm/providers/gemini.ts
+index fdc67a5..b88623d 100644
+--- a/src/lib/llm/providers/gemini.ts
++++ b/src/lib/llm/providers/gemini.ts
+@@ -18,45 +18,46 @@ export class GeminiProvider extends BaseLLMProvider {
+   }
+ 
+   async listAvailableModels(): Promise<ModelInfo[]> {
+-    if (!this.settings.apiKey) {
+-      return [];
+-    }
++    // Use the base class method for providers without a models listing API
++    return this.getAvailableModelsWithoutListing();
++  }
+ 
++  async validateKey(key: string): Promise<boolean> {
+     try {
+-      // Google doesn't provide a dedicated models endpoint like OpenAI
+-      // Instead, we'll check if the API key is valid by making a minimal request
+-      const isValid = await this.validateKey(this.settings.apiKey);
++      console.log('[Gemini] Validating API key...');
+       
+-      if (!isValid) {
+-        return [];
++      // Basic format validation for browser context
++      if (!key || typeof key !== 'string' || key.trim().length < 30) {
++        console.error('[Gemini] Invalid API key format');
++        return false;
+       }
+       
+-      // If the key is valid, return the configured models
+-      return this.getModels();
+-    } catch (error) {
+-      console.error('Error checking Gemini models:', error);
+-      return [];
+-    }
+-  }
+-
+-  async validateKey(key: string): Promise<boolean> {
+-    try {
+-      // Make a minimal request to check if the key is valid
+-      const response = await fetch(this.config.endpoints.chat, {
+-        method: 'POST',
+-        headers: {
+-          'Authorization': `Bearer ${key}`,
+-          'Content-Type': 'application/json',
+-        },
+-        body: JSON.stringify({
+-          model: this.config.defaultModel,
+-          messages: [{ role: 'user', content: 'test' }],
+-          max_tokens: 1,
+-        }),
+-      });
+-
+-      return response.ok;
++      console.log('[Gemini] API key format appears valid');
++      
++      // Try to use the makeValidationRequest method, but fall back to format validation
++      // if we encounter what appears to be a CORS issue
++      try {
++        return await this.makeValidationRequest(
++          this.config.endpoints.chat,
++          {
++            model: this.config.defaultModel,
++            messages: [{ role: 'user', content: 'test' }],
++            max_tokens: 5,
++          },
++          { 'Authorization': `Bearer ${key}` },
++          key
++        );
++      } catch (error: any) {
++        // If this appears to be a CORS/network error rather than an auth error,
++        // accept the key based on format validation
++        if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
++          console.warn('[Gemini] Could not validate key through API (likely CORS), but format is valid');
++          return true;
++        }
++        throw error; // Re-throw other errors
++      }
+     } catch (error) {
++      console.error('Error validating Gemini API key:', error);
+       return false;
+     }
+   }
+diff --git a/src/lib/llm/providers/grok.ts b/src/lib/llm/providers/grok.ts
+index ae3eecf..24d6f7a 100644
+--- a/src/lib/llm/providers/grok.ts
++++ b/src/lib/llm/providers/grok.ts
+@@ -18,24 +18,48 @@ export class GrokProvider extends BaseLLMProvider {
+   }
+ 
+   async listAvailableModels(): Promise<ModelInfo[]> {
+-    if (!this.settings.apiKey) {
+-      return [];
+-    }
++    // Use the base class method for providers without a models listing API
++    return this.getAvailableModelsWithoutListing();
++  }
+ 
++  async validateKey(key: string): Promise<boolean> {
+     try {
+-      // Grok doesn't provide a dedicated models API endpoint
+-      // Instead, we'll check if the API key is valid and return our configured models
+-      const isValid = await this.validateKey(this.settings.apiKey);
++      console.log('[Grok] Validating API key...');
+       
+-      if (!isValid) {
+-        return [];
++      // Basic format validation for browser context
++      if (!key || typeof key !== 'string' || key.trim().length < 30) {
++        console.error('[Grok] Invalid API key format');
++        return false;
+       }
+       
+-      // If key is valid, return the configured models
+-      return this.getModels();
++      console.log('[Grok] API key format appears valid');
++      
++      // Try to use the makeValidationRequest method, but fall back to format validation
++      // if we encounter what appears to be a CORS issue
++      try {
++        return await this.makeValidationRequest(
++          this.config.endpoints.chat,
++          {
++            model: this.config.defaultModel,
++            messages: [{ role: 'user', content: 'test' }],
++            max_tokens: 5,
++            temperature: 0.7,
++          },
++          { 'Authorization': `Bearer ${key}` },
++          key
++        );
++      } catch (error: any) {
++        // If this appears to be a CORS/network error rather than an auth error,
++        // accept the key based on format validation
++        if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
++          console.warn('[Grok] Could not validate key through API (likely CORS), but format is valid');
++          return true;
++        }
++        throw error; // Re-throw other errors
++      }
+     } catch (error) {
+-      console.error('Error checking Grok models:', error);
+-      return [];
++      console.error('Error validating Grok API key:', error);
++      return false;
+     }
+   }
+ 
+diff --git a/src/lib/llm/providers/openai.ts b/src/lib/llm/providers/openai.ts
+index a34f35d..c6b9fee 100644
+--- a/src/lib/llm/providers/openai.ts
++++ b/src/lib/llm/providers/openai.ts
+@@ -5,7 +5,7 @@ import { OPENAI_MODELS } from './openai-models';
+ const OPENAI_CONFIG: ProviderConfig = {
+   name: 'OpenAI',
+   requiresKey: true,
+-  defaultModel: 'gpt-3.5-turbo',
++  defaultModel: 'o3-mini',
+   endpoints: {
+     chat: 'https://api.openai.com/v1/chat/completions',
+     completions: 'https://api.openai.com/v1/completions',
+@@ -25,45 +25,115 @@ export class OpenAIProvider extends BaseLLMProvider {
+     }
+ 
+     try {
+-      // Use the OpenAI models endpoint to get available models
+-      const response = await fetch('https://api.openai.com/v1/models', {
+-        headers: {
+-          'Authorization': `Bearer ${this.settings.apiKey}`,
+-          'Content-Type': 'application/json',
+-        },
+-      });
+-
+-      if (!response.ok) {
+-        console.error('Failed to fetch OpenAI models:', await response.text());
+-        return this.getModels(); // Fallback to configured models
+-      }
+-
+-      const data = await response.json();
+-      const availableModelIds = new Set(data.data.map((model: any) => model.id));
++      console.log('[OpenAI] Fetching available models...');
+       
+-      // Only include models from our config that the API key has access to
+-      const availableConfigModels = this.getModels().filter(model => 
+-        availableModelIds.has(model.id)
++      // Use the base makeGetRequest method for consistent logging
++      const response = await this.makeGetRequest(
++        'https://api.openai.com/v1/models',
++        { 'Authorization': `Bearer ${this.settings.apiKey}` }
+       );
++
++      const data = await response.json();
+       
+-      // Return only the configured models that are available with this API key
+-      return availableConfigModels;
++      // Use the base class method to process models
++      return this.processModelListResponse(data.data);
+     } catch (error) {
+       console.error('Error fetching OpenAI models:', error);
+       return this.getModels(); // Fallback to configured models
+     }
+   }
+ 
++  async validateKey(key: string): Promise<boolean> {
++    try {
++      console.log('[OpenAI] Validating API key...');
++      
++      // Basic format validation for browser context
++      if (!key || typeof key !== 'string' || key.trim().length < 30) {
++        console.error('[OpenAI] Invalid API key format');
++        return false;
++      }
++      
++      // Check if key has the expected OpenAI key prefix
++      if (!key.startsWith('sk-')) {
++        console.error('[OpenAI] API key does not have the expected format (should start with sk-)');
++        return false;
++      }
++      
++      console.log('[OpenAI] API key format appears valid');
++      
++      // Try to use the makeValidationRequest method, but fall back to format validation
++      // if we encounter what appears to be a CORS issue
++      try {
++        return await this.makeValidationRequest(
++          this.config.endpoints.chat,
++          {
++            model: this.config.defaultModel,
++            messages: [{ role: 'user', content: 'test' }],
++            max_tokens: 5,
++          },
++          { 'Authorization': `Bearer ${key}` },
++          key
++        );
++      } catch (error: any) {
++        // If this appears to be a CORS/network error rather than an auth error,
++        // accept the key based on format validation
++        if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
++          console.warn('[OpenAI] Could not validate key through API (likely CORS), but format is valid');
++          return true;
++        }
++        throw error; // Re-throw other errors
++      }
++    } catch (error) {
++      console.error('Error validating OpenAI API key:', error);
++      return false;
++    }
++  }
++
+   async chat(request: LLMRequest): Promise<LLMResponse> {
++    // Log the model being used for debugging
++    console.log(`[OpenAI] Using model: ${request.model}`);
++    
++    // Create the proper request payload with TypeScript typing
++    const payload: {
++      model: string;
++      messages: Array<{role: string; content: string}>;
++      temperature?: number;
++      max_tokens?: number;
++      stream?: boolean;
++      reasoning_effort?: string;
++    } = {
++      model: request.model,
++      messages: [{ role: 'user', content: request.prompt }],
++    };
++    
++    // Check if the model is o3-mini, which has different parameter support
++    const isO3Model = request.model.includes('o3-');
++    
++    // Add optional parameters only if they're defined AND supported by the model
++    if (request.maxTokens) {
++      payload.max_tokens = request.maxTokens;
++    }
++    
++    if (request.stream) {
++      payload.stream = request.stream;
++    }
++    
++    // Add temperature only for models that support it (not o3 models)
++    if (request.temperature && !isO3Model) {
++      payload.temperature = request.temperature;
++    }
++    
++    // Add reasoning_effort parameter for o3-mini models
++    // The default is "medium", but can be set to "high" or "low"
++    if (isO3Model) {
++      payload.reasoning_effort = request.reasoningEffort || "medium";
++    }
++    
++    console.log(`[OpenAI] Request payload:`, JSON.stringify(payload, null, 2));
++    
+     const response = await this.makeRequest(
+       this.config.endpoints.chat,
+-      {
+-        model: request.model,
+-        messages: [{ role: 'user', content: request.prompt }],
+-        max_tokens: request.maxTokens,
+-        temperature: request.temperature,
+-        stream: request.stream,
+-      }
++      payload
+     );
+ 
+     const data = await response.json();
+diff --git a/src/lib/llm/providers/openrouter.ts b/src/lib/llm/providers/openrouter.ts
+index 7afaf33..d6db290 100644
+--- a/src/lib/llm/providers/openrouter.ts
++++ b/src/lib/llm/providers/openrouter.ts
+@@ -23,60 +23,34 @@ export class OpenRouterProvider extends BaseLLMProvider {
+     }
+ 
+     try {
+-      // OpenRouter provides a models endpoint to list available models
+-      const response = await fetch('https://openrouter.ai/api/v1/models', {
+-        headers: {
+-          'Authorization': `Bearer ${this.settings.apiKey}`,
+-          'Content-Type': 'application/json',
+-          'HTTP-Referer': 'https://deep-synthesis.app',
+-          'X-Title': 'Deep Synthesis',
+-        },
+-      });
+-
+-      if (!response.ok) {
+-        console.error('Failed to fetch OpenRouter models:', await response.text());
+-        return this.getModels(); // Fallback to configured models
+-      }
+-
+-      const data = await response.json();
+-      const availableModels = data.data || [];
++      console.log('[OpenRouter] Fetching available models...');
+       
+-      // Map OpenRouter model data to our ModelInfo format
+-      const modelInfoMap = new Map<string, ModelInfo>();
++      // Use the base makeGetRequest method for consistent logging
++      const response = await this.makeGetRequest(
++        'https://openrouter.ai/api/v1/models',
++        { 'Authorization': `Bearer ${this.settings.apiKey}` }
++      );
+       
+-      // First, add our configured models as a baseline
+-      this.getModels().forEach(model => {
+-        modelInfoMap.set(model.id, model);
+-      });
++      const data = await response.json();
+       
+-      // Then add/update with actual available models
+-      for (const model of availableModels) {
+-        // Skip non-chat models
+-        if (!model.id.includes('/')) continue;
+-        
+-        // Extract provider and model name
+-        const [provider, modelName] = model.id.split('/');
+-        const displayName = model.name || `${provider.charAt(0).toUpperCase() + provider.slice(1)} ${modelName}`;
+-        
+-        modelInfoMap.set(model.id, {
+-          id: model.id,
+-          name: displayName,
+-          provider: 'OpenRouter',
++      // Use the base class method to process models with a custom mapper
++      return this.processModelListResponse(
++        data.data, 
++        'id', 
++        (model: any) => ({
+           capabilities: {
+             maxTokens: model.context_length || 4096,
+             contextWindow: model.context_length || 4096,
+-            streaming: model.streaming !== false,
+-            functionCalling: Boolean(model.supports_tools),
+-            vision: Boolean(model.supports_vision),
++            streaming: true,
++            functionCalling: model.features?.includes('tools') || model.features?.includes('json'),
++            vision: model.features?.includes('vision'),
+           },
+           costPer1kTokens: {
+-            input: model.pricing?.prompt || 0.001,
+-            output: model.pricing?.completion || 0.002,
++            input: model.pricing?.input || 0.0005,
++            output: model.pricing?.output || 0.0015,
+           },
+-        });
+-      }
+-      
+-      return Array.from(modelInfoMap.values());
++        })
++      );
+     } catch (error) {
+       console.error('Error fetching OpenRouter models:', error);
+       return this.getModels(); // Fallback to configured models
+@@ -85,27 +59,40 @@ export class OpenRouterProvider extends BaseLLMProvider {
+ 
+   async validateKey(key: string): Promise<boolean> {
+     try {
+-      const response = await fetch(this.config.endpoints.chat, {
+-        method: 'POST',
+-        headers: {
+-          'Authorization': `Bearer ${key}`,
+-          'Content-Type': 'application/json',
+-          'HTTP-Referer': window.location.origin, // Required by OpenRouter
+-          'X-Title': 'Deep Synthesis', // Optional but good practice
+-        },
+-        body: JSON.stringify({
+-          model: this.config.defaultModel,
+-          messages: [{ role: 'user', content: 'test' }],
+-          max_tokens: 10
+-        })
+-      });
+-
+-      if (!response.ok) {
++      console.log('[OpenRouter] Validating API key...');
++      
++      // Basic format validation for browser context
++      if (!key || typeof key !== 'string' || key.trim().length < 30) {
++        console.error('[OpenRouter] Invalid API key format');
+         return false;
+       }
+-
+-      return true;
++      
++      console.log('[OpenRouter] API key format appears valid');
++      
++      // Try to use the makeValidationRequest method, but fall back to format validation
++      // if we encounter what appears to be a CORS issue
++      try {
++        return await this.makeValidationRequest(
++          this.config.endpoints.chat,
++          {
++            model: this.config.defaultModel,
++            messages: [{ role: 'user', content: 'test' }],
++            max_tokens: 5,
++          },
++          { 'Authorization': `Bearer ${key}` },
++          key
++        );
++      } catch (error: any) {
++        // If this appears to be a CORS/network error rather than an auth error,
++        // accept the key based on format validation
++        if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
++          console.warn('[OpenRouter] Could not validate key through API (likely CORS), but format is valid');
++          return true;
++        }
++        throw error; // Re-throw other errors
++      }
+     } catch (error) {
++      console.error('Error validating OpenRouter API key:', error);
+       return false;
+     }
+   }
+diff --git a/src/lib/llm/types.ts b/src/lib/llm/types.ts
+index 188a917..6732958 100644
+--- a/src/lib/llm/types.ts
++++ b/src/lib/llm/types.ts
+@@ -40,6 +40,7 @@ export interface LLMRequest {
+   maxTokens?: number;
+   temperature?: number;
+   stream?: boolean;
++  reasoningEffort?: 'high' | 'medium' | 'low'; // For o3-mini models
+ }
+ 
+ export interface ProviderConfig {
+diff --git a/src/lib/llm/use-llm.ts b/src/lib/llm/use-llm.ts
+index 5d866de..50e7635 100644
+--- a/src/lib/llm/use-llm.ts
++++ b/src/lib/llm/use-llm.ts
+@@ -64,6 +64,7 @@ export function useLLM() {
+       temperature?: number;
+       maxTokens?: number;
+       stream?: boolean;
++      reasoningEffort?: 'high' | 'medium' | 'low';
+     }
+   ): Promise<LLMResponse> => {
+     setLoading(true);
+@@ -83,6 +84,7 @@ export function useLLM() {
+         temperature: options?.temperature ?? 0.7,
+         maxTokens: options?.maxTokens,
+         stream: options?.stream,
++        reasoningEffort: options?.reasoningEffort,
+       };
+ 
+       const response = await provider.chat(request);
+diff --git a/src/lib/services/arxiv/operations.ts b/src/lib/services/arxiv/operations.ts
+index bb3a0b7..35480b3 100644
+--- a/src/lib/services/arxiv/operations.ts
++++ b/src/lib/services/arxiv/operations.ts
+@@ -5,8 +5,16 @@ import { ensureHttps } from '../../utils/network/url';
+ import type { ArxivSearchParams, ArxivSearchResponse, ArxivFeed, ArxivEntry } from './types';
+ import { apiClient } from '../../api';
+ 
+-// Base URL for arXiv API
+-const ARXIV_API_URL = 'https://export.arxiv.org/api/query';
++/**
++ * Generate a web URL for arXiv search from API query string
++ * @param queryString Query string in API format
++ * @returns A URL that can be used in browser to view search results on arXiv website
++ */
++export function getArxivSearchUrl(queryString: string): string {
++  // Convert the API query format to web search format
++  const webSearchQuery = queryString.replace(/\+/g, '%20');
++  return `https://arxiv.org/search/?query=${encodeURIComponent(webSearchQuery)}&searchtype=all`;
++}
+ 
+ /**
+  * Search for papers on arXiv
+diff --git a/src/pages/NewBriefPage.tsx b/src/pages/NewBriefPage.tsx
+index 5dd3648..11bdee5 100644
+--- a/src/pages/NewBriefPage.tsx
++++ b/src/pages/NewBriefPage.tsx
+@@ -23,6 +23,9 @@ import {
+   faFileCode
+ } from '@fortawesome/free-solid-svg-icons';
+ import toast from 'react-hot-toast';
++import QueryRefinement from '@/components/briefs/QueryRefinement';
++import SearchQueryGenerator from '@/components/briefs/SearchQueryGenerator';
++import PaperSelector from '@/components/briefs/PaperSelector';
+ 
+ // Extended Paper type with selected property
+ type PaperWithSelection = Paper & { selected?: boolean };
+@@ -57,6 +60,10 @@ const NewBriefPage: React.FC = () => {
+   const [refinedQuery, setRefinedQuery] = useState('');
+   const [selectedPapers, setSelectedPapers] = useState<PaperWithSelection[]>([]);
+   
++  // Query refinement state
++  const [showQueryInput, setShowQueryInput] = useState(true);
++  const [showQueryRefinement, setShowQueryRefinement] = useState(false);
++  
+   // Mark a step as complete and advance to the next step
+   const completeStep = (step: number) => {
+     const newStatus = { ...stepsStatus };
+@@ -66,601 +73,273 @@ const NewBriefPage: React.FC = () => {
+     setCurrentStep(step + 1);
+   };
+ 
+-  // Step 1: Find papers
+-  const handleFindPapers = async (e: React.FormEvent) => {
++  // Handle initial query submission
++  const handleInitialQuery = (e: React.FormEvent) => {
+     e.preventDefault();
+-    
+     if (!query.trim()) return;
+     
+-    setIsLoading(true);
+-    setProgress(0);
+-    setStatusMessage('Searching arXiv for papers...');
+-    
+-    try {
+-      // Convert paperCount to number
+-      const maxResults = parseInt(paperCount);
+-      
+-      // Search arXiv for papers
+-      const searchResults = await searchArxiv({
+-        query: query.trim(),
+-        maxResults,
+-        sortBy: 'relevance',
+-      });
+-      
+-      // Update progress
+-      setProgress(40);
+-      setStatusMessage(`Found ${searchResults.papers.length} papers. Processing...`);
+-      
+-      // Store papers in IndexedDB
+-      const papers = searchResults.papers;
+-      const progressIncrement = 40 / papers.length;
+-      
+-      for (let i = 0; i < papers.length; i++) {
+-        const paper = papers[i];
+-        
+-        // Update status message
+-        setStatusMessage(`Processing paper ${i + 1} of ${papers.length}...`);
+-        
+-        // Store paper in IndexedDB
+-        await PaperOperations.create({
+-          ...paper,
+-          pdfDownloaded: false,
+-          pdfDownloadProgress: undefined
+-        });
+-        
+-        // Update progress
+-        setProgress(40 + (i + 1) * progressIncrement);
+-      }
+-      
+-      // Set papers for the next step
+-      setPapers(papers);
+-      
+-      // Complete step 1 and move to step 2
+-      completeStep(1);
+-      setProgress(100);
+-      setIsLoading(false);
+-    } catch (error) {
+-      console.error('Error finding papers:', error);
+-      setStatusMessage('Error finding papers. Please try again.');
+-      
+-      // Show error toast notification
+-      toast.error(`Failed to find papers: ${error instanceof Error ? error.message : 'Unknown error'}`);
+-      
+-      setIsLoading(false);
+-    }
++    setShowQueryInput(false);
++    setShowQueryRefinement(true);
+   };
+-
+-  // Step 2: Refine query with AI
+-  const handleRefineQuery = async () => {
+-    setIsLoading(true);
+-    setProgress(0);
+-    setStatusMessage('Refining your query with AI...');
+-    
+-    try {
+-      // Mockup for AI refinement - in production, this would call the AI service
+-      setProgress(50);
+-      
+-      // Simulate API call delay
+-      await new Promise(resolve => setTimeout(resolve, 1500));
+-      
+-      // Set refined query (mockup)
+-      const aiRefinedQuery = `${query} (focusing on most recent developments and key breakthroughs)`;
+-      setRefinedQuery(aiRefinedQuery);
+-      
+-      // Complete step 2 and move to step 3
+-      completeStep(2);
+-      setProgress(100);
+-      setIsLoading(false);
+-    } catch (error) {
+-      console.error('Error refining query:', error);
+-      setStatusMessage('Error refining query. Please try again.');
+-      
+-      // Show error toast notification
+-      toast.error(`Failed to refine query: ${error instanceof Error ? error.message : 'Unknown error'}`);
+-      
+-      setIsLoading(false);
+-    }
++  
++  // Handle refined query from the QueryRefinement component
++  const handleRefinedQuery = (refined: string) => {
++    setRefinedQuery(refined);
++    setShowQueryRefinement(false);
++    completeStep(1);
+   };
+ 
+-  // Step 3: Select and rank papers
+-  const handlePaperSelection = (paperId: string) => {
+-    setPapers(currentPapers => 
+-      currentPapers.map(paper => 
+-        paper.id === paperId 
+-          ? { ...paper, selected: !paper.selected } 
+-          : paper
+-      )
+-    );
++  // Handle papers found by the SearchQueryGenerator
++  const handlePapersFound = (foundPapers: Paper[]) => {
++    setPapers(foundPapers.map(paper => ({ ...paper, selected: false })));
++    completeStep(2);
+   };
+ 
+-  const handleConfirmSelection = () => {
+-    const selected = papers.filter(paper => paper.selected);
+-    setSelectedPapers(selected);
+-    
+-    if (selected.length === 0) {
+-      toast.error('Please select at least one paper');
+-      return;
+-    }
+-    
+-    // Complete step 3 and move to step 4
++  // Handle paper selection confirmation
++  const handlePaperSelectionConfirmed = (selectedPapers: Paper[]) => {
++    setSelectedPapers(selectedPapers);
+     completeStep(3);
+   };
+-
++  
+   // Step 4: Generate brief
+   const handleGenerateBrief = async () => {
+     setIsLoading(true);
+     setProgress(0);
+-    setStatusMessage('Generating brief...');
++    setStatusMessage('Generating research brief...');
+     
+     try {
++      // Prepare papers for brief
++      const paperContents = selectedPapers.map(paper => ({
++        title: paper.title,
++        abstract: paper.abstract,
++        authors: paper.authors.join(', '),
++        year: paper.year
++      }));
++      
+       // Update progress
+       setProgress(20);
+-      setStatusMessage('Creating brief...');
++      setStatusMessage('Synthesizing content from selected papers...');
+       
+-      // Create a new brief
+-      const briefId = await BriefOperations.create({
+-        title: `Brief: ${refinedQuery || query}`,
+-        query: refinedQuery || query,
++      // Generate brief title
++      const briefTitle = refinedQuery.length > 50 
++        ? refinedQuery.substring(0, 50) + '...' 
++        : refinedQuery;
++      
++      // Create brief object
++      const briefId = crypto.randomUUID();
++      const brief = {
++        id: briefId,
++        title: briefTitle,
++        query: refinedQuery,
++        review: JSON.stringify(paperContents), // This is a placeholder, in a real app you would generate the review content
+         references: selectedPapers.map(paper => ({
+           paperId: paper.id,
+           text: `${paper.authors.join(', ')}. ${paper.title}. ${paper.year}.`,
+-          pdfUrl: paper.pdfUrl,
++          pdfUrl: paper.pdfUrl
+         })),
+-        bibtex: selectedPapers.map(paper => paper.bibtex).join('\n\n'),
+-        review: '',
++        bibtex: '', // Placeholder
+         date: new Date(),
+-      });
++        createdAt: new Date(),
++        updatedAt: new Date()
++      };
+       
+-      // Complete progress
+-      setProgress(100);
+-      setStatusMessage('Brief generated!');
++      // Save brief to database
++      await BriefOperations.create(brief);
+       
+-      // Navigate to the brief page
+-      setTimeout(() => {
+-        setIsLoading(false);
+-        navigate(`/brief/${briefId}`);
+-      }, 500);
+-    } catch (error) {
+-      console.error('Error generating brief:', error);
+-      setStatusMessage('Error generating brief. Please try again.');
++      // Update progress
++      setProgress(100);
++      setStatusMessage('Brief generated successfully.');
+       
+-      // Show error toast notification
+-      toast.error(`Failed to generate brief: ${error instanceof Error ? error.message : 'Unknown error'}`);
++      // Navigate to brief page
++      navigate(`/briefs/${briefId}`);
+       
++    } catch (error) {
+       setIsLoading(false);
++      toast.error('Error generating brief: ' + (error as Error).message);
++      console.error('Error generating brief:', error);
+     }
+   };
+-
+-  // Render step content based on current step
++  
++  // Render content based on current step
+   const renderStepContent = () => {
+     switch (currentStep) {
+       case 1:
+         return (
+-          <Card className="shadow-lg w-full">
+-            <CardHeader>
+-              <CardTitle className="text-2xl">Step 1: Find Papers</CardTitle>
+-              <CardDescription>
+-                Enter your research topic to search for relevant papers
+-              </CardDescription>
+-            </CardHeader>
+-            
+-            <CardContent>
+-              <form onSubmit={handleFindPapers} className="space-y-6">
+-                {/* Research Topic */}
++          <div className="space-y-8">
++            {showQueryInput && (
++              <form onSubmit={handleInitialQuery} className="space-y-4">
+                 <div className="space-y-2">
+-                  <Label htmlFor="query" className="text-base">Research Topic</Label>
++                  <Label htmlFor="query">Research Query</Label>
+                   <Input
+                     id="query"
+-                    placeholder="e.g., Recent advances in quantum computing"
++                    placeholder="Enter your research question or topic"
+                     value={query}
+                     onChange={(e) => setQuery(e.target.value)}
+-                    disabled={isLoading}
+-                    className="h-12"
++                    className="w-full"
+                     required
+                   />
+                 </div>
+-
+-                {/* Keywords */}
+-                <div className="space-y-2">
+-                  <Label htmlFor="keywords" className="text-base">Keywords (Optional)</Label>
+-                  <Input
+-                    id="keywords"
+-                    placeholder="e.g., hardware, entanglement"
+-                    value={keywords}
+-                    onChange={(e) => setKeywords(e.target.value)}
+-                    disabled={isLoading}
+-                    className="h-12"
+-                  />
+-                </div>
+-
+-                {/* Paper Count */}
+-                <div className="space-y-2">
+-                  <Label htmlFor="paperCount" className="text-base">Number of Papers</Label>
+-                  <Select 
+-                    value={paperCount} 
+-                    onValueChange={setPaperCount}
+-                    disabled={isLoading}
+-                  >
+-                    <SelectTrigger id="paperCount" className="h-12">
+-                      <SelectValue placeholder="Select number of papers" />
+-                    </SelectTrigger>
+-                    <SelectContent>
+-                      <SelectItem value="5">5 papers</SelectItem>
+-                      <SelectItem value="10">10 papers</SelectItem>
+-                      <SelectItem value="15">15 papers</SelectItem>
+-                      <SelectItem value="20">20 papers</SelectItem>
+-                    </SelectContent>
+-                  </Select>
+-                </div>
+-
+-                {/* Advanced Options */}
+-                <Collapsible className="w-full">
+-                  <CollapsibleTrigger asChild>
+-                    <Button variant="ghost" className="w-full justify-between">
+-                      Advanced Options
+-                      <FontAwesomeIcon icon={faChevronDown} className="h-4 w-4" />
+-                    </Button>
+-                  </CollapsibleTrigger>
+-                  <CollapsibleContent className="p-4 space-y-4 bg-gray-50 dark:bg-gray-800 rounded-lg mt-2">
+-                    <p className="text-sm text-gray-500">Advanced options coming soon...</p>
+-                  </CollapsibleContent>
+-                </Collapsible>
+-
+-                {/* Progress Indicator */}
+-                {isLoading && (
+-                  <div className="space-y-3 bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
+-                    <div className="flex justify-between text-sm">
+-                      <span className="font-medium">{statusMessage}</span>
+-                      <span className="font-medium">{progress}%</span>
+-                    </div>
+-                    <Progress value={progress} className="w-full h-2" />
+-                  </div>
+-                )}
+-
+-                {/* Submit Button */}
+-                <Button 
+-                  type="submit" 
+-                  className="w-full h-12 text-base"
+-                  disabled={isLoading || !query.trim()}
+-                >
+-                  {isLoading ? (
+-                    <>
+-                      <Loading size="small" message="" className="mr-2" />
+-                      Processing...
+-                    </>
+-                  ) : (
+-                    <>
+-                      <FontAwesomeIcon icon={faSearch} className="mr-2 h-4 w-4" />
+-                      Find Papers
+-                    </>
+-                  )}
++                <Button type="submit" disabled={!query.trim()}>
++                  <FontAwesomeIcon icon={faRobot} className="mr-2" />
++                  Refine Query with AI
+                 </Button>
+               </form>
+-            </CardContent>
+-          </Card>
++            )}
++            
++            {showQueryRefinement && (
++              <QueryRefinement
++                initialQuery={query}
++                onQueryRefined={handleRefinedQuery}
++                onBack={() => {
++                  setShowQueryRefinement(false);
++                  setShowQueryInput(true);
++                }}
++              />
++            )}
++          </div>
+         );
+-
++      
+       case 2:
+         return (
+-          <Card className="shadow-lg w-full">
+-            <CardHeader>
+-              <CardTitle className="text-2xl">Step 2: Refine Your Research Question</CardTitle>
+-              <CardDescription>
+-                Use AI to refine your research question for better results
+-              </CardDescription>
+-            </CardHeader>
+-            
+-            <CardContent className="space-y-6">
+-              <div className="space-y-4">
+-                <Label className="text-base">Original Query</Label>
+-                <div className="p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
+-                  <p className="text-base">{query}</p>
+-                </div>
+-              </div>
+-              
+-              <div className="space-y-4">
+-                <Label className="text-base">Papers Found</Label>
+-                <div className="p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
+-                  <p className="text-base">{papers.length} papers found</p>
+-                </div>
+-              </div>
+-              
+-              {/* AI Interaction Chat (Mockup) */}
+-              <div className="space-y-4">
+-                <Label className="text-base">AI Assistance</Label>
+-                <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 space-y-4">
+-                  <div className="flex items-start space-x-3">
+-                    <FontAwesomeIcon icon={faRobot} className="h-5 w-5 text-blue-500 mt-1" />
+-                    <div className="bg-blue-50 dark:bg-blue-900/30 p-3 rounded-lg text-sm flex-1">
+-                      I can help refine your query for better results. Would you like to focus on specific aspects of "{query}"?
+-                    </div>
+-                  </div>
+-                  
+-                  {/* AI Chat Input (Mockup) */}
+-                  <div className="flex">
+-                    <Input 
+-                      placeholder="Ask the AI to refine your query..."
+-                      className="rounded-r-none"
+-                      disabled={isLoading}
+-                    />
+-                    <Button 
+-                      className="rounded-l-none"
+-                      disabled={isLoading}
+-                      onClick={handleRefineQuery}
+-                    >
+-                      Send
+-                    </Button>
+-                  </div>
+-                </div>
+-              </div>
+-              
+-              {/* Progress Indicator */}
+-              {isLoading && (
+-                <div className="space-y-3 bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
+-                  <div className="flex justify-between text-sm">
+-                    <span className="font-medium">{statusMessage}</span>
+-                    <span className="font-medium">{progress}%</span>
+-                  </div>
+-                  <Progress value={progress} className="w-full h-2" />
+-                </div>
+-              )}
+-              
+-              {/* Controls */}
+-              <div className="flex justify-between">
+-                <Button
+-                  variant="outline"
+-                  onClick={() => setCurrentStep(1)}
+-                  disabled={isLoading}
+-                >
+-                  Back
+-                </Button>
+-                
+-                <Button
+-                  onClick={handleRefineQuery}
+-                  disabled={isLoading}
+-                >
+-                  {isLoading ? (
+-                    <>
+-                      <Loading size="small" message="" className="mr-2" />
+-                      Processing...
+-                    </>
+-                  ) : (
+-                    'Use AI to Refine Query'
+-                  )}
+-                </Button>
+-              </div>
+-            </CardContent>
+-          </Card>
++          <div className="space-y-8">
++            <SearchQueryGenerator
++              refinedQuery={refinedQuery}
++              onSearchComplete={handlePapersFound}
++              onCancel={() => {
++                setShowQueryRefinement(true);
++                setCurrentStep(1);
++                const newStatus = { ...stepsStatus };
++                newStatus[1] = 'active';
++                newStatus[2] = 'pending';
++                setStepsStatus(newStatus);
++              }}
++            />
++          </div>
+         );
+-
++      
+       case 3:
+         return (
+-          <Card className="shadow-lg w-full">
+-            <CardHeader>
+-              <CardTitle className="text-2xl">Step 3: Select Papers</CardTitle>
+-              <CardDescription>
+-                Choose which papers to include in your research brief
+-              </CardDescription>
+-            </CardHeader>
+-            
+-            <CardContent className="space-y-6">
+-              <div className="space-y-4">
+-                <Label className="text-base">Refined Query</Label>
+-                <div className="p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
+-                  <p className="text-base">{refinedQuery || query}</p>
+-                </div>
+-              </div>
+-              
+-              {/* Paper Selection List */}
+-              <div className="space-y-4">
+-                <div className="flex justify-between items-center">
+-                  <Label className="text-base">Select Papers</Label>
+-                  <span className="text-sm text-gray-500">
+-                    {papers.filter(p => p.selected).length} of {papers.length} selected
+-                  </span>
+-                </div>
+-                
+-                <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
+-                  {papers.map(paper => (
+-                    <div 
+-                      key={paper.id}
+-                      className={`p-4 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer transition-colors ${paper.selected ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700' : ''}`}
+-                      onClick={() => handlePaperSelection(paper.id)}
+-                    >
+-                      <div className="flex items-start justify-between">
+-                        <div className="space-y-2 flex-1">
+-                          <h3 className="font-medium">{paper.title}</h3>
+-                          <p className="text-sm text-gray-600 dark:text-gray-400">
+-                            {paper.authors.join(', ')}
+-                          </p>
+-                          <p className="text-sm">{paper.abstract.substring(0, 150)}...</p>
+-                        </div>
+-                        
+-                        <div className="ml-4 flex-shrink-0">
+-                          <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${paper.selected ? 'border-blue-500 bg-blue-500 text-white' : 'border-gray-300 dark:border-gray-600'}`}>
+-                            {paper.selected && (
+-                              <FontAwesomeIcon icon={faCheckCircle} className="h-4 w-4" />
+-                            )}
+-                          </div>
+-                        </div>
+-                      </div>
+-                    </div>
+-                  ))}
+-                </div>
+-              </div>
+-              
+-              {/* Controls */}
+-              <div className="flex justify-between">
+-                <Button
+-                  variant="outline"
+-                  onClick={() => setCurrentStep(2)}
+-                >
+-                  Back
+-                </Button>
+-                
+-                <Button
+-                  onClick={handleConfirmSelection}
+-                  disabled={papers.filter(p => p.selected).length === 0}
+-                >
+-                  Continue
+-                </Button>
+-              </div>
+-            </CardContent>
+-          </Card>
++          <div className="space-y-8">
++            <PaperSelector 
++              papers={papers}
++              onSelectionConfirmed={handlePaperSelectionConfirmed}
++              onBack={() => {
++                setCurrentStep(2);
++                const newStatus = { ...stepsStatus };
++                newStatus[2] = 'active';
++                newStatus[3] = 'pending';
++                setStepsStatus(newStatus);
++              }}
++            />
++          </div>
+         );
+-
++      
+       case 4:
+         return (
+-          <Card className="shadow-lg w-full">
+-            <CardHeader>
+-              <CardTitle className="text-2xl">Step 4: Generate Brief</CardTitle>
+-              <CardDescription>
+-                Create your research brief based on selected papers
+-              </CardDescription>
+-            </CardHeader>
+-            
+-            <CardContent className="space-y-6">
+-              <div className="space-y-4">
+-                <Label className="text-base">Research Focus</Label>
+-                <div className="p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
+-                  <p className="text-base">{refinedQuery || query}</p>
+-                </div>
+-              </div>
++          <div className="space-y-8">
++            <div className="space-y-4">
++              <h3 className="text-lg font-medium">Generate Research Brief</h3>
++              <p className="text-gray-500">
++                You've selected {selectedPapers.length} papers for your research brief.
++                The AI will now synthesize these papers to answer your query:
++              </p>
+               
+-              <div className="space-y-4">
+-                <Label className="text-base">Selected Papers</Label>
+-                <div className="p-4 rounded-lg bg-gray-50 dark:bg-gray-800 max-h-[200px] overflow-y-auto">
+-                  <ul className="space-y-2 list-disc list-inside">
++              <Card>
++                <CardHeader>
++                  <CardTitle>Research Query</CardTitle>
++                </CardHeader>
++                <CardContent>
++                  <p>{refinedQuery}</p>
++                </CardContent>
++              </Card>
++              
++              <Card>
++                <CardHeader>
++                  <CardTitle>Selected Papers</CardTitle>
++                </CardHeader>
++                <CardContent>
++                  <ul className="list-disc pl-5 space-y-2">
+                     {selectedPapers.map(paper => (
+-                      <li key={paper.id} className="text-sm">
+-                        {paper.title}
+-                      </li>
++                      <li key={paper.id}>{paper.title} ({paper.year})</li>
+                     ))}
+                   </ul>
+-                </div>
+-              </div>
++                </CardContent>
++              </Card>
+               
+-              {/* Brief Options */}
++              <Button 
++                type="button" 
++                onClick={handleGenerateBrief}
++                disabled={isLoading}
++              >
++                <FontAwesomeIcon icon={faFileCode} className="mr-2" />
++                Generate Brief
++              </Button>
++            </div>
++            
++            {isLoading && (
+               <div className="space-y-4">
+-                <Label htmlFor="briefStyle" className="text-base">Brief Style</Label>
+-                <Select defaultValue="standard">
+-                  <SelectTrigger id="briefStyle" className="h-12">
+-                    <SelectValue placeholder="Select brief style" />
+-                  </SelectTrigger>
+-                  <SelectContent>
+-                    <SelectItem value="standard">Standard Academic</SelectItem>
+-                    <SelectItem value="simplified">Simplified</SelectItem>
+-                    <SelectItem value="detailed">Detailed</SelectItem>
+-                  </SelectContent>
+-                </Select>
++                <Progress value={progress} className="w-full" />
++                <p className="text-sm text-gray-500">{statusMessage}</p>
+               </div>
+-              
+-              {/* Progress Indicator */}
+-              {isLoading && (
+-                <div className="space-y-3 bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
+-                  <div className="flex justify-between text-sm">
+-                    <span className="font-medium">{statusMessage}</span>
+-                    <span className="font-medium">{progress}%</span>
+-                  </div>
+-                  <Progress value={progress} className="w-full h-2" />
+-                </div>
+-              )}
+-              
+-              {/* Controls */}
+-              <div className="flex justify-between">
+-                <Button
+-                  variant="outline"
+-                  onClick={() => setCurrentStep(3)}
+-                  disabled={isLoading}
+-                >
+-                  Back
+-                </Button>
+-                
+-                <Button
+-                  onClick={handleGenerateBrief}
+-                  disabled={isLoading || selectedPapers.length === 0}
+-                >
+-                  {isLoading ? (
+-                    <>
+-                      <Loading size="small" message="" className="mr-2" />
+-                      Generating...
+-                    </>
+-                  ) : (
+-                    <>
+-                      <FontAwesomeIcon icon={faFileCode} className="mr-2 h-4 w-4" />
+-                      Generate Brief
+-                    </>
+-                  )}
+-                </Button>
+-              </div>
+-            </CardContent>
+-          </Card>
++            )}
++          </div>
+         );
+-
++        
+       default:
+         return null;
+     }
+   };
+-
++  
+   return (
+-    <div className="h-full flex flex-col overflow-auto">
+-      <div className="space-y-8 py-6">
+-        <div className="text-center space-y-4">
+-          <h1 className="text-3xl font-bold tracking-tight">Create a New Research Brief</h1>
+-          <p className="text-gray-600 dark:text-gray-300">
+-            Follow these steps to create a comprehensive literature review
+-          </p>
+-        </div>
+-        
+-        {/* Steps Progress */}
+-        <div className="flex flex-col md:flex-row gap-4 mb-8">
++    <div className="container py-8 max-w-4xl">
++      <h1 className="text-3xl font-bold mb-8">Create Research Brief</h1>
++      
++      <div className="mb-8">
++        <div className="flex items-center">
+           {[1, 2, 3, 4].map((step) => (
+-            <div 
+-              key={step}
+-              className="flex-1"
+-            >
++            <React.Fragment key={step}>
+               <div 
+-                className={`flex items-center p-4 rounded-lg border ${
+-                  stepsStatus[step] === 'active' 
+-                    ? 'bg-blue-50 border-blue-300 dark:bg-blue-900/30 dark:border-blue-700' 
+-                    : stepsStatus[step] === 'completed'
+-                    ? 'bg-green-50 border-green-300 dark:bg-green-900/30 dark:border-green-700'
+-                    : 'bg-gray-50 border-gray-200 dark:bg-gray-800 dark:border-gray-700'
++                className={`relative flex items-center justify-center w-10 h-10 rounded-full border-2 ${
++                  stepsStatus[step] === 'completed' 
++                    ? 'bg-primary text-white border-primary' 
++                    : stepsStatus[step] === 'active'
++                    ? 'border-primary text-primary' 
++                    : 'border-gray-300 text-gray-400'
+                 }`}
+               >
+-                <div className={`w-8 h-8 rounded-full flex items-center justify-center mr-3 ${
+-                  stepsStatus[step] === 'active' 
+-                    ? 'bg-blue-500 text-white' 
+-                    : stepsStatus[step] === 'completed'
+-                    ? 'bg-green-500 text-white'
+-                    : 'bg-gray-300 text-gray-600 dark:bg-gray-600 dark:text-gray-300'
+-                }`}>
+-                  {stepsStatus[step] === 'completed' ? (
+-                    <FontAwesomeIcon icon={faCheckCircle} className="h-4 w-4" />
+-                  ) : stepsStatus[step] === 'active' ? (
+-                    <span>{step}</span>
+-                  ) : (
+-                    <span>{step}</span>
+-                  )}
+-                </div>
+-                <div>
+-                  <h3 className="font-medium text-sm">
+-                    {step === 1 && 'Find Papers'}
+-                    {step === 2 && 'Refine Query'}
+-                    {step === 3 && 'Select Papers'}
+-                    {step === 4 && 'Generate Brief'}
+-                  </h3>
+-                </div>
++                {stepsStatus[step] === 'completed' ? (
++                  <FontAwesomeIcon icon={faCheckCircle} />
++                ) : (
++                  <span>{step}</span>
++                )}
+               </div>
+-            </div>
++              
++              {step < 4 && (
++                <div 
++                  className={`flex-1 h-1 ${
++                    stepsStatus[step + 1] === 'completed' || stepsStatus[step] === 'completed'
++                      ? 'bg-primary'
++                      : 'bg-gray-300'
++                  }`}
++                />
++              )}
++            </React.Fragment>
+           ))}
+         </div>
+         
+-        {/* Current Step Content */}
+-        <div className="flex-1 overflow-auto min-h-0">
+-          {renderStepContent()}
++        <div className="flex justify-between mt-2">
++          <div className="text-sm font-medium w-10 text-center">Query</div>
++          <div className="text-sm font-medium w-10 text-center">Search</div>
++          <div className="text-sm font-medium w-10 text-center">Select</div>
++          <div className="text-sm font-medium w-10 text-center">Brief</div>
+         </div>
+       </div>
++      
++      <Card>
++        <CardContent className="p-6">
++          {renderStepContent()}
++        </CardContent>
++      </Card>
+     </div>
+   );
+ };
+
+Untracked files:
+
+=== research_brief_implementation_plan.md ===
+
+# Research Brief Creation - Implementation Plan
+
+## Overview
+
+This document outlines the implementation plan for the Research Brief Creation feature. The feature helps users refine research queries, search for relevant papers on arXiv, score them for relevance, and create comprehensive research briefs.
+
+This is a simple CRUD app with browser-based storage using existing patterns and components.
+
+## Workflow
+
+1. **Query Refinement**: User + AI iteratively refine the research query
+2. **Paper Discovery**: AI creates search queries and app searches for papers on arXiv
+3. **Relevance Ranking**: AI ranks papers based on abstract relevance
+4. **Paper Selection**: User selects papers (up to 10) for inclusion
+5. **Brief Creation**: AI writes brief based on selected papers
+
+## 1. Query Refinement Phase
+
+The iterative dialogue should focus on helping users clarify:
+
+- Specific sub-topics within their research area
+- Research methodologies they're interested in
+- Relevant academic context and terminology
+- Timeframe considerations (which arXiv supports)
+
+**AI Prompt Structure:**
+
+```plaintext
+You are a research assistant helping to refine a research query. Your goal is to help the user clarify their research interests before searching for relevant papers on arXiv.
+
+Initial Query: {user_initial_query}
+
+Please ask thoughtful follow-up questions to help refine this query. Focus on:
+1. Clarifying specific sub-topics of interest
+2. Identifying relevant methodologies
+3. Establishing timeframe considerations
+4. Understanding the academic context
+
+Be conversational but focused on academic precision.
+```
+
+## 2. arXiv Integration
+
+Following the arXiv API documentation:
+
+- Respect the rate limit (one request every 3 seconds)
+- Use HTTP GET requests to the API endpoint
+- Support search parameters including dates, categories, and field-specific searches
+
+**API Request Structure:**
+
+```plaintext
+http://export.arxiv.org/api/query?search_query={encoded_query}&start={start_index}&max_results=100
+```
+
+For search query generation, we'll use a prompt like:
+
+```plaintext
+Based on the refined research query:
+"{refined_query}"
+
+Generate {number} optimized search queries for arXiv that will help find the most relevant papers. Each query should:
+1. Target a different aspect of the research question
+2. Use appropriate field prefixes (ti:, au:, abs:, etc.) when applicable
+3. Incorporate Boolean operators (AND, OR, ANDNOT) effectively
+
+Format each query properly for the arXiv API.
+```
+
+### arXiv Search Parameters
+
+Based on the arXiv API documentation, we can leverage these field prefixes:
+
+| **prefix** | **explanation**           |
+| ---------- | ------------------------- |
+| ti         | Title                     |
+| au         | Author                    |
+| abs        | Abstract                  |
+| co         | Comment                   |
+| jr         | Journal Reference         |
+| cat        | Subject Category          |
+| rn         | Report Number             |
+| all        | All of the above          |
+
+And Boolean operators:
+
+- AND
+- OR
+- ANDNOT
+
+## 3. Relevance Scoring
+
+**JSON Schema for Paper Scoring:**
+
+```json
+{
+  "paper_id": "string",
+  "title": "string",
+  "authors": "string",
+  "relevance_score": "integer",  // 1-100 scale
+  "relevance_explanation": "string",  // Brief explanation of the score
+  "key_relevance_factors": ["string"],  // List of factors making this paper relevant
+  "potential_usefulness": "string"  // How this might contribute to the research
+}
+```
+
+**AI Prompt for Scoring:**
+
+```plaintext
+You are evaluating the relevance of academic papers for a research brief.
+
+User Query: "{refined_query}"
+
+For each paper abstract below, evaluate its relevance to the query on a scale of 1-100, where:
+- 1-20: Not relevant
+- 21-40: Tangentially relevant
+- 41-60: Moderately relevant
+- 61-80: Highly relevant
+- 81-100: Exceptionally relevant
+
+Analyze factors like methodology alignment, recency, direct topic relevance, and potential usefulness.
+
+Provide your evaluation in the specified JSON format.
+
+Paper Abstracts:
+{abstracts_json}
+```
+
+## 4. Paper Selection & Processing
+
+This phase will leverage the existing papers system to:
+
+- Download the selected PDFs (respecting arXiv's policies)
+- Store them appropriately
+- Extract content via AI for the brief creation
+
+User interface will allow selection of up to 10 papers from the ranked list.
+
+## 5. Brief Creation
+
+**AI Brief Writing Prompt:**
+
+```plaintext
+You are creating a comprehensive research brief based on the following papers that were selected to answer a specific research query.
+
+Research Query: "{refined_query}"
+
+Your task is to synthesize the content from these papers into a cohesive brief that addresses the research query. The brief should:
+
+1. Begin with an executive summary (250-300 words)
+2. Provide relevant background information
+3. Synthesize key findings and insights from all papers
+4. Identify points of consensus and disagreement
+5. Highlight methodology considerations
+6. Discuss implications and applications
+7. Include proper academic citations
+
+Papers:
+{paper_contents}
+
+Format the brief in a scholarly style with appropriate headings, subheadings, and citations following academic best practices.
+```
+
+Output formats will include:
+
+- PDF
+- Word (docx)
+- Markdown
+
+## Technical Implementation Details
+
+### UI/UX Implementation
+
+- **Component Library**: Utilize existing components from Radix UI and Shadcn UI
+- **Styling**: Follow existing Tailwind CSS patterns and design system
+- **UI Flow**:
+  - Show loading states during API calls and AI processing
+  - Provide clear progress indicators for multi-step processes
+  - Maintain consistency with existing app patterns
+- Use existing Radix UI and Shadcn UI components
+- Follow Tailwind CSS patterns already in place
+- Maintain consistency with existing app patterns
+
+### LLM Integration
+
+- Use existing active models in the database 
+- Simple dropdown selector for users to choose which model to use
+- Use Dexie LiveQuery to access available models
+
+```typescript
+// Simple function to use the selected model
+async function useSelectedModel(modelId, prompt, options) {
+  const model = await db.activeModels.get(modelId);
+  return callModelAPI(model, prompt, options);
+}
+```
+
+- **No Need for Complex Architecture**: Leverage existing model access patterns rather than creating new abstractions
+- 
+### Data Storage
+
+- Use existing Dexie.js database patterns
+- Leverage the existing papers system for PDF storage
+- Simple schema extension for new data:
+
+```typescript
+// Minimal schema for the research brief feature
+db.version(currentVersion + 1).stores({
+  researchQueries: '++id, query, timestamp',
+  researchBriefs: '++id, queryId, content',
+  paperRelevance: '++id, paperId, queryId, score'
+});
+```
+
+### Error Handling
+
+- Use existing toast system for user feedback
+- Implement specific error handling for:
+  - API failures (arXiv)
+  - LLM response issues
+  - PDF processing failures
+- Provide meaningful error messages and recovery options
+- Follow standard error handling patterns in the app
+
+### Rate Limiting
+
+- Simple delay between arXiv API calls (3+ seconds)
+- Basic retry logic for failed requests
+
+## Next Steps
+
+1. Create UI components for query refinement using existing components
+2. Implement arXiv API integration with basic rate limiting
+3. Build simple relevance scoring mechanism
+4. Set up paper selection interface
+5. Integrate with brief creation
+6. Set up Dexie tables
+
+=== src/components/BriefGenerator.tsx ===
+
+import React, { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Loader2 } from 'lucide-react';
+import { useLLM } from '@/lib/llm/use-llm';
+import type { LLMResponse } from '@/lib/llm/types';
+
+export function BriefGenerator() {
+  const [topic, setTopic] = useState('');
+  const [provider, setProvider] = useState('openai');
+  const [result, setResult] = useState<LLMResponse | null>(null);
+  
+  const { 
+    loading, 
+    error, 
+    completeWithAI, 
+    getProviders, 
+    getProviderSettings 
+  } = useLLM();
+
+  const availableProviders = getProviders();
+
+  const generateBrief = async () => {
+    if (!topic.trim()) {
+      return;
+    }
+
+    try {
+      setResult(null);
+
+      const prompt = `Generate a detailed research brief on the topic: "${topic}".
+
+The brief should include:
+1. A concise overview of the topic
+2. Key areas to explore
+3. 5-7 specific research questions
+4. Potential methodologies
+5. Expected outcomes
+6. Potential challenges
+
+Format the response in markdown for readability.`;
+
+      const response = await completeWithAI(provider, prompt, {
+        temperature: 0.7,
+        maxTokens: 2000,
+      });
+
+      setResult(response);
+    } catch (err) {
+      // Error is handled in the hook
+      console.error(err);
+    }
+  };
+
+  return (
+    <Card className="w-full max-w-4xl mx-auto">
+      <CardHeader>
+        <CardTitle>Research Brief Generator</CardTitle>
+        <CardDescription>
+          Generate comprehensive research briefs on any topic using AI
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="provider">AI Provider</Label>
+          <Select value={provider} onValueChange={setProvider}>
+            <SelectTrigger id="provider">
+              <SelectValue placeholder="Select an AI provider" />
+            </SelectTrigger>
+            <SelectContent>
+              {availableProviders.map(name => (
+                <SelectItem key={name} value={name}>
+                  {name.charAt(0).toUpperCase() + name.slice(1)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        
+        <div className="space-y-2">
+          <Label htmlFor="topic">Research Topic</Label>
+          <Textarea
+            id="topic"
+            placeholder="Enter your research topic here..."
+            value={topic}
+            onChange={(e) => setTopic(e.target.value)}
+            rows={4}
+            className="resize-none"
+          />
+        </div>
+
+        {error && (
+          <Alert variant="destructive">
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        
+        {result && (
+          <div className="p-4 bg-muted rounded-md mt-4">
+            <h3 className="font-medium mb-2">Research Brief</h3>
+            <div className="prose max-w-none">
+              <pre className="whitespace-pre-wrap text-sm">{result.content}</pre>
+            </div>
+            <div className="text-xs text-muted-foreground mt-2">
+              Model: {result.model} • 
+              Tokens: {result.usage.totalTokens} ({result.usage.promptTokens} prompt, {result.usage.completionTokens} completion)
+            </div>
+          </div>
+        )}
+      </CardContent>
+      <CardFooter>
+        <Button onClick={generateBrief} disabled={loading}>
+          {loading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Generating...
+            </>
+          ) : 'Generate Brief'}
+        </Button>
+      </CardFooter>
+    </Card>
+  );
+} 
+=== src/components/briefs/MessageList.tsx ===
+
+import React from 'react';
+import { Avatar } from '@/components/ui/avatar';
+import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
+import { Loader2 } from 'lucide-react';
+
+type MessageRole = "ai" | "user";
+
+type Message = { 
+  role: MessageRole; 
+  content: string;
+  editable?: boolean;
+};
+
+interface MessageListProps {
+  messages: Message[];
+  onEditMessage?: (index: number, newContent: string) => void;
+  isLoading?: boolean;
+}
+
+const MessageList: React.FC<MessageListProps> = ({ messages, onEditMessage, isLoading = false }) => {
+  const handleEdit = (index: number, e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    if (onEditMessage) {
+      onEditMessage(index, e.target.value);
+    }
+  };
+
+  // Function to process message content - remove SUGGESTED QUERY from latest AI message
+  const processMessageContent = (content: string, isAI: boolean, isLatestAI: boolean) => {
+    if (isAI && isLatestAI) {
+      // Remove the SUGGESTED QUERY line from the latest AI message
+      return content.replace(/SUGGESTED QUERY:.*?(?=\n\n|\n$|$)/i, '').trim();
+    }
+    return content;
+  };
+
+  // Find the index of the latest AI message
+  const latestAIMessageIndex = [...messages].reverse().findIndex(m => m.role === "ai");
+  const latestAIIndex = latestAIMessageIndex !== -1 ? messages.length - 1 - latestAIMessageIndex : -1;
+
+  return (
+    <div className="space-y-3">
+      {messages.map((message, index) => {
+        const isLatestAI = message.role === "ai" && index === latestAIIndex;
+        const processedContent = processMessageContent(message.content, message.role === "ai", isLatestAI);
+        
+        return (
+          <div 
+            key={index} 
+            className={cn(
+              "flex",
+              message.role === "user" ? "justify-end" : "justify-start"
+            )}
+          >
+            {message.role === "user" ? (
+              // User message
+              <div className="flex items-start max-w-[80%]">
+                <div className="bg-blue-500 rounded-2xl rounded-tr-none py-3 px-4 text-white">
+                  <div className="whitespace-pre-wrap">{processedContent}</div>
+                </div>
+                <Avatar className="h-8 w-8 ml-2 mt-1 bg-blue-500 flex items-center justify-center text-white">
+                  <span className="text-xs font-medium">U</span>
+                </Avatar>
+              </div>
+            ) : (
+              // AI message
+              <div className="flex items-start max-w-[80%]">
+                <Avatar className="h-8 w-8 mr-2 mt-1 bg-blue-500 flex items-center justify-center text-white">
+                  <span className="text-xs font-medium">AI</span>
+                </Avatar>
+                <div className="bg-gray-100 rounded-2xl rounded-tl-none py-3 px-4">
+                  {message.editable ? (
+                    <textarea 
+                      className="w-full min-h-[100px] p-2 rounded border focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                      value={message.content}
+                      onChange={(e) => handleEdit(index, e)}
+                    />
+                  ) : (
+                    <div className="whitespace-pre-wrap">{processedContent}</div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+      
+      {isLoading && (
+        <div className="flex justify-center mt-4">
+          <div className="bg-gray-800 text-white rounded-lg py-2 px-4 flex items-center">
+            <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+            <span>Processing your response. This may take a moment...</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default MessageList; 
+=== src/components/briefs/PaperSelector.tsx ===
+
+import React, { useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import type { Paper } from '@/lib/db/schema/paper';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faCheckCircle, faChevronDown, faListCheck } from '@fortawesome/free-solid-svg-icons';
+import toast from 'react-hot-toast';
+
+interface PaperSelectorProps {
+  papers: Paper[];
+  onSelectionConfirmed: (selectedPapers: Paper[]) => void;
+  onBack?: () => void;
+  maxSelections?: number;
+}
+
+interface PaperWithSelection extends Paper {
+  selected: boolean;
+}
+
+const PaperSelector: React.FC<PaperSelectorProps> = ({
+  papers,
+  onSelectionConfirmed,
+  onBack,
+  maxSelections = 10
+}) => {
+  const [paperList, setPaperList] = useState<PaperWithSelection[]>(
+    papers.map(paper => ({ ...paper, selected: false }))
+  );
+  
+  const selectedCount = paperList.filter(p => p.selected).length;
+  
+  // Toggle paper selection
+  const handlePaperSelection = (paperId: string) => {
+    setPaperList(paperList.map(paper => {
+      if (paper.id === paperId) {
+        // If paper is not selected and we're at the limit, prevent selection
+        if (!paper.selected && selectedCount >= maxSelections) {
+          toast.error(`You can select up to ${maxSelections} papers`);
+          return paper;
+        }
+        return { ...paper, selected: !paper.selected };
+      }
+      return paper;
+    }));
+  };
+  
+  // Confirm selection
+  const handleConfirmSelection = () => {
+    const selectedPapers = paperList.filter(p => p.selected);
+    
+    if (selectedPapers.length === 0) {
+      toast.error('Please select at least one paper');
+      return;
+    }
+    
+    onSelectionConfirmed(selectedPapers);
+  };
+  
+  return (
+    <Card className="w-full">
+      <CardHeader>
+        <CardTitle>Select Papers</CardTitle>
+        <CardDescription>
+          Choose the most relevant papers for your research brief (up to {maxSelections})
+        </CardDescription>
+      </CardHeader>
+      
+      <CardContent className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h3 className="text-lg font-medium">Available Papers</h3>
+          <div className="text-sm text-gray-500">
+            {selectedCount}/{maxSelections} selected
+          </div>
+        </div>
+        
+        <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+          {paperList.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              No papers found. Try modifying your search query.
+            </div>
+          ) : (
+            paperList.map((paper) => (
+              <Card 
+                key={paper.id} 
+                className={`cursor-pointer transition-all ${
+                  paper.selected ? 'border-primary ring-2 ring-primary/20' : ''
+                }`}
+              >
+                <CardContent className="p-4 flex items-start gap-4">
+                  <div 
+                    className="mt-1 text-xl" 
+                    onClick={() => handlePaperSelection(paper.id)}
+                  >
+                    {paper.selected ? (
+                      <FontAwesomeIcon icon={faCheckCircle} className="text-primary" />
+                    ) : (
+                      <div className="w-5 h-5 rounded-full border-2 border-gray-300" />
+                    )}
+                  </div>
+                  <div className="flex-1" onClick={() => handlePaperSelection(paper.id)}>
+                    <h4 className="font-medium">{paper.title}</h4>
+                    <p className="text-sm text-gray-500 mt-1">
+                      {paper.authors.join(', ')} ({paper.year})
+                    </p>
+                    <Collapsible className="mt-2">
+                      <CollapsibleTrigger className="flex items-center text-sm text-gray-500">
+                        Show abstract <FontAwesomeIcon icon={faChevronDown} className="ml-1 h-3 w-3" />
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <p className="mt-2 text-sm text-gray-600">{paper.abstract}</p>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </div>
+      </CardContent>
+      
+      <CardFooter className="flex justify-between">
+        {onBack && (
+          <Button
+            variant="outline"
+            onClick={onBack}
+          >
+            Back
+          </Button>
+        )}
+        <Button 
+          onClick={handleConfirmSelection}
+          disabled={selectedCount === 0}
+          className={onBack ? '' : 'ml-auto'}
+        >
+          <FontAwesomeIcon icon={faListCheck} className="mr-2" />
+          Confirm Selection ({selectedCount})
+        </Button>
+      </CardFooter>
+    </Card>
+  );
+};
+
+export default PaperSelector; 
+=== src/components/briefs/QueryRefinement.tsx ===
+
+import React, { useState, useEffect, useRef } from 'react';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { Separator } from '@/components/ui/separator';
+import { useLLM } from '@/lib/llm/use-llm';
+import MessageList from './MessageList';
+import { ArrowLeft, ArrowRight, Send } from 'lucide-react';
+
+// Constants
+const MessageRoles = {
+  USER: 'user' as MessageRole,
+  AI: 'ai' as MessageRole
+};
+
+type MessageRole = "ai" | "user";
+
+// Interfaces
+type Message = { role: MessageRole; content: string };
+
+interface QueryRefinementProps {
+  initialQuery: string;
+  onQueryRefined: (refinedQuery: string) => void;
+  onBack?: () => void;
+}
+
+// Component
+const QueryRefinement: React.FC<QueryRefinementProps> = ({
+  initialQuery,
+  onQueryRefined,
+  onBack
+}) => {
+  const [aiMessages, setAiMessages] = useState<Message[]>([]);
+  const [userInput, setUserInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [finalQuery, setFinalQuery] = useState('');
+  
+  const { completeWithAI, loading } = useLLM();
+
+  // Ref to prevent duplicate calls in StrictMode
+  const initialPromptCalled = useRef(false);
+
+  // Initialize the conversation with AI
+  useEffect(() => {
+    if (initialQuery && aiMessages.length === 0 && !initialPromptCalled.current) {
+      initialPromptCalled.current = true;
+      handleInitialPrompt();
+    }
+  }, [initialQuery]);
+
+  const handleInitialPrompt = async () => {
+    setIsLoading(true);
+    // Remove the toast notification
+    try {
+      const prompt = `
+        You are a research assistant helping to refine a research query. Your goal is to help the user clarify their research interests before searching for relevant papers on arXiv.
+        
+        Initial Query: ${initialQuery}
+        
+        Please ask thoughtful follow-up questions to help refine this query. Focus on:
+        1. Clarifying specific sub-topics of interest
+        2. Identifying relevant methodologies
+        3. Establishing timeframe considerations
+        4. Understanding the academic context
+        
+        Ask only 1-2 questions at a time to keep the conversation focused. Be conversational but focused on academic precision.
+        
+        IMPORTANT: At the end of your response, always include a line with "SUGGESTED QUERY: [your suggested refined query based on information so far]" 
+        Even if you're still gathering information, provide a refined version of the query that represents your best suggestion given what you know so far.
+      `;
+      
+      const response = await completeWithAI('openai', prompt).then(res => res.content);
+      
+      // Extract the final query when it exists
+      const queryMatch = response.match(/SUGGESTED QUERY:\s*(.+?)(?=\n\n|\n$|$)/i);
+      if (queryMatch && queryMatch[1]) {
+        setFinalQuery(queryMatch[1].trim());
+      }
+      
+      setAiMessages([
+        { role: MessageRoles.USER, content: initialQuery },
+        { role: MessageRoles.AI, content: response }
+      ]);
+    } catch (error) {
+      console.error('AI conversation error:', error);
+      
+      // Show appropriate error message inside the chat instead of toast
+      setAiMessages([
+        { role: MessageRoles.USER, content: initialQuery },
+        { role: MessageRoles.AI, content: "I encountered an error processing your query. Let's try again." }
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  const handleUserResponse = async () => {
+    if (!userInput.trim()) return;
+    
+    // Add user message to conversation
+    const updatedMessages = [
+      ...aiMessages, 
+      { role: MessageRoles.USER, content: userInput }
+    ];
+    setAiMessages(updatedMessages);
+    setUserInput('');
+    setIsLoading(true);
+    
+    // Remove the toast here too
+    try {
+      // Create prompt with conversation history
+      const history = updatedMessages.map(msg => 
+        `${msg.role === MessageRoles.USER ? 'User' : 'Assistant'}: ${msg.content}`
+      ).join('\n\n');
+      
+      const prompt = `
+        You are a research assistant helping to refine a research query through conversation. Your goal is to help the user clarify their research interests before searching for relevant papers.
+        
+        Here is the conversation history:
+        ${history}
+        
+        Continue the conversation by responding to the user's last message. Ask 1-2 focused follow-up questions that help refine the research query. Focus on:
+        1. Clarifying specific sub-topics of interest
+        2. Identifying relevant methodologies 
+        3. Establishing timeframe considerations
+        4. Understanding the academic context
+        
+        Be conversational but focused on academic precision. 
+        
+        IMPORTANT: At the end of your response, always include a line with "SUGGESTED QUERY: [your suggested refined query based on the conversation so far]"
+        Even if more clarification is needed, provide your best suggestion for a refined query based on what you know so far.
+      `;
+      
+      const response = await completeWithAI('openai', prompt).then(res => res.content);
+      
+      // Extract the final query when it exists
+      const queryMatch = response.match(/SUGGESTED QUERY:\s*(.+?)(?=\n\n|\n$|$)/i);
+      if (queryMatch && queryMatch[1]) {
+        setFinalQuery(queryMatch[1].trim());
+      }
+      
+      setAiMessages([...updatedMessages, { role: MessageRoles.AI, content: response }]);
+    } catch (error) {
+      console.error('AI conversation error:', error);
+      
+      // Add error message to the conversation instead of showing toast
+      setAiMessages([
+        ...updatedMessages,
+        { role: MessageRoles.AI, content: "I encountered an error processing your response. Please try again." }
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Allow user to edit previous messages
+  const handleEditMessage = (index: number, newContent: string) => {
+    if (index % 2 !== 0) return; // Only allow editing user messages
+    
+    const newMessages = [...aiMessages];
+    newMessages[index].content = newContent;
+    
+    // Truncate conversation to remove AI responses after the edited message
+    setAiMessages(newMessages.slice(0, index + 1));
+    
+    // Auto-send after edit
+    setUserInput('');
+    setTimeout(() => {
+      handleUserResponse();
+    }, 100);
+  };
+  
+  // Let user decide when to finalize
+  const handleFinalize = () => {
+    // If user has set a specific query in the input, use that
+    const queryToUse = userInput.trim() ? 
+      userInput : 
+      finalQuery || aiMessages[aiMessages.length - 1]?.content || initialQuery;
+    
+    onQueryRefined(queryToUse);
+  };
+  
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleUserResponse();
+    }
+  };
+  
+  const handleStartRefinement = () => {
+    // Reset
+    setAiMessages([]);
+    initialPromptCalled.current = false;
+    handleInitialPrompt();
+  };
+  
+  return (
+    <Card className="w-full">
+      <CardHeader>
+        <CardTitle>Refine Your Research Query</CardTitle>
+        <CardDescription>
+          Chat with our AI assistant to refine your research query and identify key aspects to focus on.
+        </CardDescription>
+      </CardHeader>
+      
+      {/* Fixed height container with flex layout */}
+      <div className="flex flex-col h-[600px]">
+        {/* Scrollable area for messages only */}
+        <div className="flex-1 overflow-y-auto px-6">
+          <MessageList 
+            messages={aiMessages} 
+            onEditMessage={handleEditMessage}
+            isLoading={isLoading} 
+          />
+        </div>
+        
+        {/* Fixed response area at bottom */}
+        <div className="p-6 border-t bg-card">
+          {finalQuery && (
+            <div className="w-full p-3 mb-4 bg-muted rounded-md">
+              <p className="text-sm font-medium">Suggested Query:</p>
+              <p className="text-md">{finalQuery}</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Click Continue to proceed with this suggested query.
+              </p>
+            </div>
+          )}
+          
+          <div className="flex items-end gap-2">
+            <Textarea
+              placeholder="Type your response..."
+              value={userInput}
+              onChange={(e) => setUserInput(e.target.value)}
+              onKeyDown={handleKeyPress}
+              className="min-h-[80px] resize-none"
+              disabled={isLoading}
+            />
+            <Button 
+              variant="secondary"
+              className="flex-shrink-0 px-4 h-12"
+              disabled={isLoading || !userInput.trim()}
+              onClick={handleUserResponse}
+            >
+              <Send className="h-4 w-4 mr-2" />
+              Send
+            </Button>
+          </div>
+          
+          <div className="flex justify-between mt-4">
+            <Button variant="outline" onClick={onBack} disabled={isLoading}>
+              <ArrowLeft className="mr-2 h-4 w-4" /> Back
+            </Button>
+            <Button onClick={handleFinalize} disabled={isLoading || !finalQuery}>
+              Continue <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+};
+
+export default QueryRefinement; 
+=== src/components/briefs/SearchQueryGenerator.tsx ===
+
+import React, { useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Progress } from '@/components/ui/progress';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faSearch, faSpinner, faCheck, faExclamationTriangle, faExternalLinkAlt, faTimes, faRedo, faPlus } from '@fortawesome/free-solid-svg-icons';
+import { useLLM } from '@/lib/llm/use-llm';
+import { generateArxivQueries, type GeneratedSearchQuery } from '@/lib/services/arxiv/query-generator';
+import { rateLimitedBatchSearch } from '@/lib/services/arxiv/rate-limiter';
+import type { Paper } from '@/lib/db/schema/paper';
+import type { ArxivSearchParams } from '@/lib/services/arxiv/types';
+import toast from 'react-hot-toast';
+import { PaperOperations } from '@/lib/db/operations';
+import { searchArxiv } from '@/lib/services/arxiv/operations';
+
+interface SearchQueryGeneratorProps {
+  refinedQuery: string;
+  onSearchComplete: (papers: Paper[]) => void;
+  onCancel?: () => void;
+}
+
+const SearchQueryGenerator: React.FC<SearchQueryGeneratorProps> = ({
+  refinedQuery: initialRefinedQuery,
+  onSearchComplete,
+  onCancel
+}) => {
+  // Remove quotes if they exist in the initial value
+  const cleanInitialQuery = initialRefinedQuery.replace(/^["'](.*)["']$/, '$1');
+  const [refinedQuery, setRefinedQuery] = useState(cleanInitialQuery);
+  const [isGeneratingQueries, setIsGeneratingQueries] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const [generatedQueries, setGeneratedQueries] = useState<GeneratedSearchQuery[]>([]);
+  const [selectedQueries, setSelectedQueries] = useState<GeneratedSearchQuery[]>([]);
+  const [searchProgress, setSearchProgress] = useState(0);
+  const [searchStatus, setSearchStatus] = useState('');
+  const [maxResults, setMaxResults] = useState(100);
+  // Add state to track which queries are currently opened
+  const [openedQueries, setOpenedQueries] = useState<string[]>([]);
+  
+  const { completeWithAI } = useLLM();
+  
+  // Initial generation of queries (all will be selected by default)
+  const handleInitialGeneration = async () => {
+    console.log('Generating queries for:', refinedQuery);
+    setIsGeneratingQueries(true);
+    
+    try {
+      const llmWrapper = async (prompt: string) => {
+        console.log('Sending prompt to AI:', prompt);
+        const response = await completeWithAI('openai', prompt, {
+          temperature: 0.3 // Lower temperature for more deterministic responses
+        });
+        console.log('Received AI response:', response.content);
+        return response.content;
+      };
+      
+      const queries = await generateArxivQueries(llmWrapper, {
+        refinedQuery,
+        maxQueries: 3 // Default to 3 queries
+      });
+      
+      console.log('Generated initial queries:', queries);
+      
+      // Update state in this order to ensure correct rendering
+      setGeneratedQueries(queries);
+      setSelectedQueries(queries); // All queries are selected by default
+      
+      // Generate the list of query IDs to open
+      const newOpenedQueries = queries.map((_, i) => `query-${i}`);
+      
+      // Use setTimeout to ensure the state updates have been applied
+      setTimeout(() => {
+        setOpenedQueries(newOpenedQueries);
+      }, 50);
+      
+    } catch (error) {
+      console.error('Error generating queries:', error);
+      toast.error('Failed to generate search queries');
+    } finally {
+      setIsGeneratingQueries(false);
+    }
+  };
+  
+  // Generate search queries with AI - regenerate only unselected ones
+  const handleGenerateQueries = async () => {
+    console.log('Regenerating unselected queries for:', refinedQuery);
+    setIsGeneratingQueries(true);
+    
+    try {
+      const llmWrapper = async (prompt: string) => {
+        console.log('Sending prompt to AI:', prompt);
+        const response = await completeWithAI('openai', prompt, {
+          temperature: 0.3 // Lower temperature for more deterministic responses
+        });
+        console.log('Received AI response:', response.content);
+        return response.content;
+      };
+
+      // Store current queries and selected queries
+      const currentQueries = [...generatedQueries];
+      const selected = [...selectedQueries];
+      
+      // Only regenerate unselected queries
+      const unselectedQueries = currentQueries.filter(q => !selected.includes(q));
+      const numQueriesToGenerate = unselectedQueries.length;
+      
+      console.log(`Regenerating ${numQueriesToGenerate} unselected queries`);
+      
+      // If there are no unselected queries, no need to regenerate
+      if (numQueriesToGenerate === 0) {
+        toast.success('All queries are selected. No queries to regenerate.');
+        setIsGeneratingQueries(false);
+        return;
+      }
+      
+      // Generate new queries to replace the unselected ones
+      const newQueries = await generateArxivQueries(llmWrapper, {
+        refinedQuery,
+        maxQueries: numQueriesToGenerate
+      });
+      
+      console.log('Generated new queries:', newQueries);
+      
+      // Combine selected queries with new queries
+      const updatedQueries = [
+        ...selected,                     // Keep all selected queries
+        ...newQueries                    // Add the newly generated queries
+      ];
+      
+      // Make sure we don't exceed our limit (typically 3)
+      const finalQueries = updatedQueries.slice(0, 3);
+      
+      // Track which queries are new vs. existing
+      const selectedIndices = selected.map(s => finalQueries.indexOf(s));
+      const newIndices = newQueries.map(n => finalQueries.indexOf(n));
+      
+      // Keep opened state for existing queries and add the new ones
+      const existingOpenedQueries = openedQueries.filter(id => {
+        const index = parseInt(id.replace('query-', ''));
+        return selectedIndices.includes(index);
+      });
+      
+      // Add new query IDs to the opened list
+      const newOpenedQueries = newIndices.map(i => `query-${i}`);
+      
+      // Update state first
+      setGeneratedQueries(finalQueries);
+      setSelectedQueries(selected);
+      
+      // Use setTimeout to ensure state updates have applied before opening queries
+      setTimeout(() => {
+        // Update opened queries, combining existing opened and new ones
+        setOpenedQueries([...existingOpenedQueries, ...newOpenedQueries]);
+      }, 50);
+      
+    } catch (error) {
+      console.error('Error generating queries:', error);
+      toast.error('Failed to generate search queries');
+    } finally {
+      setIsGeneratingQueries(false);
+    }
+  };
+  
+  // Toggle selection of a query
+  const toggleQuerySelection = (query: GeneratedSearchQuery) => {
+    if (selectedQueries.includes(query)) {
+      setSelectedQueries(selectedQueries.filter((q) => q !== query));
+    } else {
+      setSelectedQueries([...selectedQueries, query]);
+    }
+  };
+  
+  // Perform the search
+  const handleSearch = async () => {
+    if (selectedQueries.length === 0) {
+      toast.error('Please select at least one search query');
+      return;
+    }
+    
+    setIsSearching(true);
+    setSearchProgress(0);
+    
+    try {
+      const allPapers: Paper[] = [];
+      const queriesCount = selectedQueries.length;
+      
+      // Function to update progress
+      const updateProgress = (currentQuery: number, status: string, progress: number = 0) => {
+        const overallProgress = Math.floor((currentQuery - 1) / queriesCount * 100) + Math.floor(progress / queriesCount);
+        setSearchProgress(overallProgress);
+        setSearchStatus(status);
+      };
+      
+      // Prepare arXiv search params for each query
+      const searchParamsArray: ArxivSearchParams[] = selectedQueries.map(query => ({
+        query: query.query,
+        maxResults,
+        sortBy: 'relevance'
+      }));
+      
+      // Search each query
+      for (let i = 0; i < selectedQueries.length; i++) {
+        const query = selectedQueries[i];
+        const queryNumber = i + 1;
+        const searchParams = searchParamsArray[i];
+        
+        updateProgress(queryNumber, `Searching query ${queryNumber}/${queriesCount}: ${query.query}`);
+        console.log(`Executing arXiv search for query ${queryNumber}/${queriesCount}:`, searchParams);
+        
+        try {
+          // Use the searchArxiv function directly for better logging and control
+          const result = await searchArxiv(searchParams);
+          console.log(`Received results for query ${queryNumber}/${queriesCount}:`, result);
+          
+          // Process the results
+          for (const paper of result.papers) {
+            updateProgress(queryNumber, `Processing paper: ${paper.title}`);
+            
+            try {
+              // Check if paper already exists
+              const existingPaper = await PaperOperations.getByArxivId(paper.arxivId);
+              
+              if (!existingPaper) {
+                // Store paper in database
+                await PaperOperations.create(paper);
+              }
+              
+              // Add to results if not already there
+              if (!allPapers.some(p => p.arxivId === paper.arxivId)) {
+                allPapers.push(paper);
+              }
+            } catch (error) {
+              console.error('Error processing paper:', paper, error);
+            }
+          }
+        } catch (error) {
+          console.error(`Error searching query ${queryNumber}/${queriesCount}:`, error);
+          toast.error(`Failed to execute query ${queryNumber}`);
+        }
+        
+        updateProgress(queryNumber + 1, `Completed query ${queryNumber}/${queriesCount}`);
+      }
+      
+      // Complete the search
+      console.log('Search completed, found papers:', allPapers.length);
+      setSearchStatus(`Found ${allPapers.length} papers`);
+      setSearchProgress(100);
+      
+      // Call the onSearchComplete callback
+      onSearchComplete(allPapers);
+    } catch (error) {
+      console.error('Error searching arXiv:', error);
+      toast.error('Failed to search arXiv');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+  
+  // Generate a single new query
+  const handleAddQuery = async () => {
+    console.log('Adding a new query for:', refinedQuery);
+    setIsGeneratingQueries(true);
+    
+    try {
+      const llmWrapper = async (prompt: string) => {
+        console.log('Sending prompt to AI:', prompt);
+        const response = await completeWithAI('openai', prompt, {
+          temperature: 0.3 // Lower temperature for more deterministic responses
+        });
+        console.log('Received AI response:', response.content);
+        return response.content;
+      };
+      
+      // Generate just one new query
+      const newQuery = await generateArxivQueries(llmWrapper, {
+        refinedQuery,
+        maxQueries: 1
+      });
+      
+      console.log('Generated new query:', newQuery);
+      
+      // Add the new query to existing ones
+      const updatedQueries = [...generatedQueries, ...newQuery];
+      
+      // Ensure we don't exceed a reasonable limit (e.g., 5 queries max)
+      const finalQueries = updatedQueries.slice(0, 5);
+      
+      // Set the new index before updating state
+      const newIndex = finalQueries.length - 1;
+      
+      // Update state in this order to ensure correct rendering
+      setGeneratedQueries(finalQueries);
+      setSelectedQueries([...selectedQueries, ...newQuery]);
+      
+      // Force update to ensure the new query is opened by adding it to openedQueries
+      setTimeout(() => {
+        setOpenedQueries(prev => {
+          // Make sure we don't add duplicates
+          if (!prev.includes(`query-${newIndex}`)) {
+            return [...prev, `query-${newIndex}`];
+          }
+          return prev;
+        });
+      }, 50);
+      
+      toast.success('New query added');
+    } catch (error) {
+      console.error('Error generating new query:', error);
+      toast.error('Failed to generate new query');
+    } finally {
+      setIsGeneratingQueries(false);
+    }
+  };
+  
+  // Render query selector
+  const renderQuerySelector = () => {
+    if (generatedQueries.length === 0) {
+      return (
+        <div className="text-center p-6">
+          <Button 
+            onClick={handleInitialGeneration}
+            disabled={isGeneratingQueries}
+            className="mx-auto"
+          >
+            {isGeneratingQueries ? (
+              <>
+                <FontAwesomeIcon icon={faSpinner} spin className="mr-2" />
+                Generating Queries...
+              </>
+            ) : (
+              <>
+                <FontAwesomeIcon icon={faSearch} className="mr-2" />
+                Generate Search Queries
+              </>
+            )}
+          </Button>
+        </div>
+      );
+    }
+    
+    // Calculate counts for button labels
+    const unselectedCount = generatedQueries.length - selectedQueries.length;
+    const selectedCount = selectedQueries.length;
+    
+    return (
+      <div>
+        {isGeneratingQueries && (
+          <div className="flex items-center justify-center p-4 mb-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+            <FontAwesomeIcon icon={faSpinner} spin className="mr-2 text-blue-500" />
+            <span className="text-sm font-medium">Regenerating search queries...</span>
+          </div>
+        )}
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <Label htmlFor="maxResults">Maximum Results per Query</Label>
+            <Input
+              id="maxResults"
+              type="number"
+              min={10}
+              max={500}
+              step={10}
+              value={maxResults}
+              onChange={(e) => setMaxResults(Number(e.target.value))}
+              className="w-24"
+              disabled={isSearching}
+            />
+          </div>
+          
+          <Accordion 
+            type="multiple" 
+            className="w-full" 
+            defaultValue={openedQueries}
+            onValueChange={(values) => setOpenedQueries(values)}
+          >
+            {generatedQueries.map((query, index) => (
+              <AccordionItem key={index} value={`query-${index}`}>
+                <div className="flex items-center">
+                  <div 
+                    className={`w-6 h-6 rounded-full border-2 flex items-center justify-center mr-2 cursor-pointer ${
+                      selectedQueries.includes(query) 
+                        ? 'border-green-500 bg-green-500 text-white' 
+                        : 'border-red-500 bg-red-500 text-white'
+                    }`}
+                    onClick={() => toggleQuerySelection(query)}
+                    title={selectedQueries.includes(query) ? "Selected" : "Not selected"}
+                  >
+                    {selectedQueries.includes(query) 
+                      ? <FontAwesomeIcon icon={faCheck} className="h-3 w-3" />
+                      : <FontAwesomeIcon icon={faTimes} className="h-3 w-3" />
+                    }
+                  </div>
+                  <AccordionTrigger className="flex-1">
+                    Query {index + 1}
+                  </AccordionTrigger>
+                </div>
+                <AccordionContent>
+                  <div className="space-y-4 p-2">
+                    <div>
+                      <h4 className="text-sm font-semibold mb-1">Description</h4>
+                      <p className="text-sm">{query.description}</p>
+                    </div>
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <h4 className="text-sm font-semibold">arXiv Query String</h4>
+                        <a 
+                          href={`https://export.arxiv.org/api/query?search_query=${query.query}&max_results=${maxResults}`}
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-sm text-blue-500 hover:text-blue-700 inline-flex items-center"
+                          title="View raw API results in XML format"
+                        >
+                          View arXiv API Results <FontAwesomeIcon icon={faExternalLinkAlt} className="ml-1 h-3 w-3" />
+                        </a>
+                      </div>
+                      <div className="bg-gray-100 dark:bg-gray-800 p-2 rounded text-sm font-mono">
+                        {query.query}
+                      </div>
+                    </div>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
+          
+          <div className="mt-4 flex justify-between gap-4">
+            <Button 
+              onClick={handleAddQuery}
+              disabled={isGeneratingQueries}
+              variant="outline"
+              className="w-1/4"
+            >
+              {isGeneratingQueries ? (
+                <>
+                  <FontAwesomeIcon icon={faSpinner} spin className="mr-2" />
+                  Adding...
+                </>
+              ) : (
+                <>
+                  <FontAwesomeIcon icon={faPlus} className="mr-2" />
+                  Add New Query
+                </>
+              )}
+            </Button>
+            <Button 
+              onClick={handleGenerateQueries}
+              disabled={isGeneratingQueries || unselectedCount === 0}
+              variant="outline"
+              className="w-1/4"
+            >
+              {isGeneratingQueries ? (
+                <>
+                  <FontAwesomeIcon icon={faSpinner} spin className="mr-2" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <FontAwesomeIcon icon={faRedo} className="mr-2" />
+                  Regenerate {unselectedCount} {unselectedCount === 1 ? 'Query' : 'Queries'}
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  return (
+    <Card className="w-full">
+      <CardHeader>
+        <CardTitle>Search for Papers</CardTitle>
+        <CardDescription>
+          Generate optimized search queries for arXiv based on your research question
+        </CardDescription>
+      </CardHeader>
+      
+      <CardContent className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="refinedQuery">Research Query</Label>
+          <Textarea
+            id="refinedQuery"
+            value={refinedQuery}
+            onChange={(e) => setRefinedQuery(e.target.value)}
+            className="w-full min-h-[120px]"
+            placeholder="Enter your research query here..."
+          />
+        </div>
+        
+        {/* Query selection or progress display */}
+        {isSearching ? (
+          <div className="space-y-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+            <div className="flex justify-between text-sm">
+              <span className="font-medium">{searchStatus}</span>
+              <span className="font-medium">{searchProgress}%</span>
+            </div>
+            <Progress value={searchProgress} className="w-full" />
+          </div>
+        ) : (
+          renderQuerySelector()
+        )}
+      </CardContent>
+      
+      <CardFooter className="flex justify-between">
+        {onCancel && (
+          <Button
+            variant="outline"
+            onClick={onCancel}
+            disabled={isSearching || isGeneratingQueries}
+          >
+            Back
+          </Button>
+        )}
+        <div className="flex-1"></div>
+        {generatedQueries.length > 0 && !isSearching && (
+          <Button 
+            onClick={handleSearch}
+            disabled={isSearching || selectedQueries.length === 0 || isGeneratingQueries}
+            variant="default"
+          >
+            {isSearching ? (
+              <>
+                <FontAwesomeIcon icon={faSpinner} spin className="mr-2" />
+                Searching...
+              </>
+            ) : (
+              <>
+                <FontAwesomeIcon icon={faSearch} className="mr-2" />
+                Search arXiv with {selectedQueries.length} approved {selectedQueries.length === 1 ? 'query' : 'queries'}
+              </>
+            )}
+          </Button>
+        )}
+      </CardFooter>
+    </Card>
+  );
+};
+
+export default SearchQueryGenerator; 
+=== src/components/ui/avatar.tsx ===
+
+import * as React from "react"
+import * as AvatarPrimitive from "@radix-ui/react-avatar"
+
+import { cn } from "@/lib/utils"
+
+const Avatar = React.forwardRef<
+  React.ElementRef<typeof AvatarPrimitive.Root>,
+  React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Root>
+>(({ className, ...props }, ref) => (
+  <AvatarPrimitive.Root
+    ref={ref}
+    className={cn(
+      "relative flex h-10 w-10 shrink-0 overflow-hidden rounded-full",
+      className
+    )}
+    {...props}
+  />
+))
+Avatar.displayName = AvatarPrimitive.Root.displayName
+
+const AvatarImage = React.forwardRef<
+  React.ElementRef<typeof AvatarPrimitive.Image>,
+  React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Image>
+>(({ className, ...props }, ref) => (
+  <AvatarPrimitive.Image
+    ref={ref}
+    className={cn("aspect-square h-full w-full", className)}
+    {...props}
+  />
+))
+AvatarImage.displayName = AvatarPrimitive.Image.displayName
+
+const AvatarFallback = React.forwardRef<
+  React.ElementRef<typeof AvatarPrimitive.Fallback>,
+  React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Fallback>
+>(({ className, ...props }, ref) => (
+  <AvatarPrimitive.Fallback
+    ref={ref}
+    className={cn(
+      "flex h-full w-full items-center justify-center rounded-full bg-muted",
+      className
+    )}
+    {...props}
+  />
+))
+AvatarFallback.displayName = AvatarPrimitive.Fallback.displayName
+
+export { Avatar, AvatarImage, AvatarFallback }
+
+=== src/components/ui/skeleton.tsx ===
+
+import { cn } from "@/lib/utils"
+
+function Skeleton({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div
+      className={cn("animate-pulse rounded-md bg-primary/10", className)}
+      {...props}
+    />
+  )
+}
+
+export { Skeleton }
+
+=== src/components/ui/textarea.tsx ===
+
+import * as React from "react"
+
+import { cn } from "@/lib/utils"
+
+const Textarea = React.forwardRef<
+  HTMLTextAreaElement,
+  React.ComponentProps<"textarea">
+>(({ className, ...props }, ref) => {
+  return (
+    <textarea
+      className={cn(
+        "flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-base shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
+        className
+      )}
+      ref={ref}
+      {...props}
+    />
+  )
+})
+Textarea.displayName = "Textarea"
+
+export { Textarea }
+
+=== src/lib/services/arxiv/query-generator.ts ===
+
+import type { ArxivSearchParams } from './types';
+
+/**
+ * Interface for search query generation
+ */
+export interface SearchQueryGenerationParams {
+  refinedQuery: string;
+  maxQueries?: number;
+  options?: {
+    includeDates?: boolean;
+    includeCategories?: boolean;
+  };
+}
+
+/**
+ * Generated search query with metadata
+ */
+export interface GeneratedSearchQuery {
+  query: string;          // The actual query string to send to arXiv
+  description: string;    // Human-readable description of what this query targets
+  searchParams: ArxivSearchParams; // Formatted params for the arXiv API
+}
+
+/**
+ * Sanitize arXiv query to make it less restrictive
+ * Replaces 'AND' operators inside parentheses with 'OR' operators
+ */
+function sanitizeQuery(query: string): string {
+  let result = '';
+  let inParentheses = false;
+  let i = 0;
+  
+  // Process the query character by character to track parentheses
+  while (i < query.length) {
+    // Track if we're inside parentheses
+    if (query[i] === '(') {
+      inParentheses = true;
+      result += query[i];
+    } 
+    else if (query[i] === ')') {
+      inParentheses = false;
+      result += query[i];
+    }
+    // Check for "AND" inside parentheses and replace with "OR"
+    else if (inParentheses && 
+        query.substring(i, i + 5).toUpperCase() === ' AND ') {
+      result += ' OR ';
+      i += 4; // Skip past " AND" (space will be incremented in the loop)
+    }
+    else if (inParentheses && 
+        query.substring(i, i + 4).toUpperCase() === 'AND ') {
+      result += 'OR ';
+      i += 3; // Skip past "AND" (space will be incremented in the loop)
+    }
+    else {
+      result += query[i];
+    }
+    i++;
+  }
+  
+  return result;
+}
+
+/**
+ * Generate arXiv search queries using AI
+ * @param llm The LLM completion function
+ * @param params The query generation parameters
+ * @returns Promise with array of generated queries
+ */
+export async function generateArxivQueries(
+  llm: (prompt: string) => Promise<string>,
+  params: SearchQueryGenerationParams
+): Promise<GeneratedSearchQuery[]> {
+  const {
+    refinedQuery,
+    maxQueries = 3,
+    options = {}
+  } = params;
+
+  // Construct the prompt for the AI
+  const prompt = `
+You are an expert at constructing optimized search queries for the arXiv scientific paper repository.
+
+Research Query: "${refinedQuery}"
+
+Generate ${maxQueries} optimized search queries for arXiv that will help find the most relevant papers. Each query should:
+1. Target a different aspect of the research question
+2. Use appropriate field prefixes (ti:, au:, abs:, etc.) when applicable
+3. Incorporate Boolean operators (AND, OR, ANDNOT) effectively
+
+Available field prefixes:
+- ti: Title
+- au: Author
+- abs: Abstract
+- co: Comment
+- jr: Journal Reference
+- cat: Subject Category
+- rn: Report Number
+- all: All of the above
+
+Boolean operators: AND, OR, ANDNOT
+
+IMPORTANT FORMATTING: 
+- Use normal spaces between search terms and operators
+- Correct: "ti:(architecture OR model) AND abs:(ASR AND Whisper)"
+- The system will handle URL encoding automatically
+- Do not attempt to encode the spaces or special characters yourself
+
+Format your response as a valid JSON array with each object having these fields:
+- query: The formatted arXiv query string (with normal spaces)
+- description: A brief explanation of what aspect of the research this query targets
+
+Example output format:
+[
+  {
+    "query": "ti:quantum AND abs:computing AND cat:quant-ph",
+    "description": "Targeting papers with 'quantum' in title and 'computing' in abstract, limited to quantum physics category"
+  }
+]
+
+Your response should ONLY contain the valid JSON array and nothing else.
+`;
+
+  try {
+    // Get AI completion
+    const response = await llm(prompt);
+    
+    // Parse JSON response
+    const jsonStartIndex = response.indexOf('[');
+    const jsonEndIndex = response.lastIndexOf(']') + 1;
+    
+    if (jsonStartIndex === -1 || jsonEndIndex === -1) {
+      throw new Error("Failed to parse AI response: No JSON array found");
+    }
+    
+    const jsonStr = response.substring(jsonStartIndex, jsonEndIndex);
+    const queries = JSON.parse(jsonStr) as Array<{
+      query: string;
+      description: string;
+    }>;
+    
+    // Convert to GeneratedSearchQuery format with sanitized queries
+    return queries.map(item => {
+      const sanitizedQuery = sanitizeQuery(item.query);
+      console.log(`Original query: "${item.query}"`);
+      console.log(`Sanitized query: "${sanitizedQuery}"`);
+      return {
+        query: sanitizedQuery,
+        description: item.description,
+        searchParams: {
+          query: sanitizedQuery,
+          maxResults: 100,
+          sortBy: 'relevance',
+          sortOrder: 'descending'
+        }
+      };
+    });
+  } catch (error) {
+    console.error("Error generating arXiv queries:", error);
+    
+    // Fallback to basic queries if AI fails
+    const fallbackQuery = `all:${refinedQuery}`;
+    const sanitizedFallbackQuery = sanitizeQuery(fallbackQuery);
+    return [{
+      query: sanitizedFallbackQuery,
+      description: "Basic query searching all fields for the main research topic",
+      searchParams: {
+        query: sanitizedFallbackQuery,
+        maxResults: 100,
+        sortBy: 'relevance',
+        sortOrder: 'descending'
+      }
+    }];
+  }
+} 
+=== src/lib/services/arxiv/rate-limiter.ts ===
+
+import type { ArxivSearchParams, ArxivSearchResponse } from './types';
+import { searchArxiv } from './operations';
+
+/**
+ * Result of a batch search operation
+ */
+export interface BatchSearchResult {
+  results: ArxivSearchResponse[];
+  errors: Array<{
+    params: ArxivSearchParams;
+    error: Error;
+  }>;
+}
+
+// Rate limiting configuration for arXiv API
+const ARXIV_RATE_LIMIT_MS = 3000; // 3 seconds between requests
+
+/**
+ * Singleton class that manages rate-limited API calls to arXiv
+ */
+export class ArxivRateLimiter {
+  private static instance: ArxivRateLimiter;
+  private lastRequestTime: number = 0;
+  private queuedRequests: Array<{
+    params: ArxivSearchParams;
+    resolve: (value: ArxivSearchResponse) => void;
+    reject: (reason: Error) => void;
+  }> = [];
+  private isProcessing: boolean = false;
+
+  /**
+   * Get singleton instance
+   */
+  public static getInstance(): ArxivRateLimiter {
+    if (!ArxivRateLimiter.instance) {
+      ArxivRateLimiter.instance = new ArxivRateLimiter();
+    }
+    return ArxivRateLimiter.instance;
+  }
+
+  /**
+   * Perform a rate-limited search to arXiv
+   */
+  public search(params: ArxivSearchParams): Promise<ArxivSearchResponse> {
+    return new Promise<ArxivSearchResponse>((resolve, reject) => {
+      // Queue the request
+      this.queuedRequests.push({ params, resolve, reject });
+      
+      // Start processing queue if not already processing
+      if (!this.isProcessing) {
+        this.processQueue();
+      }
+    });
+  }
+
+  /**
+   * Search arXiv with multiple queries, respecting rate limits
+   */
+  public async searchBatch(
+    paramsArray: ArxivSearchParams[]
+  ): Promise<BatchSearchResult> {
+    const results: ArxivSearchResponse[] = [];
+    const errors: Array<{ params: ArxivSearchParams; error: Error }> = [];
+
+    for (const params of paramsArray) {
+      try {
+        const result = await this.search(params);
+        results.push(result);
+      } catch (error) {
+        errors.push({
+          params,
+          error: error instanceof Error ? error : new Error(String(error)),
+        });
+      }
+    }
+
+    return { results, errors };
+  }
+
+  /**
+   * Process the request queue with rate limiting
+   */
+  private async processQueue(): Promise<void> {
+    if (this.queuedRequests.length === 0) {
+      this.isProcessing = false;
+      return;
+    }
+
+    this.isProcessing = true;
+    const now = Date.now();
+    const timeSinceLastRequest = now - this.lastRequestTime;
+    
+    // Determine how long to wait before the next request
+    const waitTime = Math.max(0, ARXIV_RATE_LIMIT_MS - timeSinceLastRequest);
+    
+    // Wait if needed to respect rate limits
+    if (waitTime > 0) {
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
+    
+    // Process the next request
+    const request = this.queuedRequests.shift();
+    if (!request) {
+      this.processQueue();
+      return;
+    }
+    
+    // Update last request time
+    this.lastRequestTime = Date.now();
+    
+    try {
+      // Execute the arXiv search request
+      const result = await searchArxiv(request.params);
+      request.resolve(result);
+    } catch (error) {
+      // Handle error
+      request.reject(
+        error instanceof Error 
+          ? error 
+          : new Error(`ArXiv search failed: ${String(error)}`)
+      );
+    }
+    
+    // Continue processing the queue
+    this.processQueue();
+  }
+}
+
+// Export function wrappers around the singleton
+
+/**
+ * Perform a single arXiv search with rate limiting
+ */
+export async function rateLimitedSearch(
+  params: ArxivSearchParams
+): Promise<ArxivSearchResponse> {
+  return ArxivRateLimiter.getInstance().search(params);
+}
+
+/**
+ * Perform multiple arXiv searches with rate limiting
+ */
+export async function rateLimitedBatchSearch(
+  paramsArray: ArxivSearchParams[]
+): Promise<BatchSearchResult> {
+  return ArxivRateLimiter.getInstance().searchBatch(paramsArray);
+} 
