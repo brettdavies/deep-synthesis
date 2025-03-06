@@ -9,9 +9,13 @@ import NewBriefPage from "./pages/NewBriefPage";
 import NotFoundPage from "./pages/NotFoundPage";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { Toaster } from "./components/ui/toaster";
+import { useLLMInitializer } from "./hooks/useLLMInitializer";
 import "./styles/globals.css";
 
 export function App() {
+  // Initialize LLM providers with settings from the database
+  useLLMInitializer();
+  
   return (
     <ErrorBoundary>
       <BrowserRouter>

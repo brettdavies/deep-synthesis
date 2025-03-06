@@ -3,25 +3,20 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loading } from '@/components/ui/loading';
 import { SettingOperations } from '@/lib/db/operations';
 import { Separator } from '@/components/ui/separator';
 import { Loader } from '@/components/ui/loader';
-import { AlertCircle, ShieldCheck, Key, Save } from 'lucide-react';
+import { AlertCircle, ShieldCheck, Save } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import toast from 'react-hot-toast';
+import { LLMSettings } from '@/components/settings/LLMSettings';
 
 interface ApiKeys {
   [service: string]: string;
 }
 
 const SettingsPage: React.FC = () => {
-  const [apiKeys, setApiKeys] = useState<ApiKeys>({
-    openrouter: '',
-    openai: ''
-  });
-  const [activeService, setActiveService] = useState('openrouter');
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [currentPin, setCurrentPin] = useState('');
@@ -35,14 +30,6 @@ const SettingsPage: React.FC = () => {
         // Check if PIN is set
         const pinSetting = await SettingOperations.getByProvider('pin');
         setHasPinSet(!!pinSetting?.value);
-        
-        // Load API keys if no PIN or if PIN is already entered
-        if (!pinSetting?.value) {
-          const apiKeysSetting = await SettingOperations.getByProvider('apiKeys');
-          if (apiKeysSetting?.value) {
-            setApiKeys(apiKeysSetting.value);
-          }
-        }
       } catch (error) {
         console.error('Error loading settings:', error);
       } finally {
@@ -59,12 +46,6 @@ const SettingsPage: React.FC = () => {
     try {
       const pinSetting = await SettingOperations.getByProvider('pin');
       if (pinSetting?.value === currentPin) {
-        // PIN is correct, load API keys
-        const apiKeysSetting = await SettingOperations.getByProvider('apiKeys');
-        if (apiKeysSetting?.value) {
-          // In a real implementation, we would decrypt the API keys here
-          setApiKeys(apiKeysSetting.value);
-        }
         setHasPinSet(true);
         setMessage('PIN verified successfully');
         toast.success('PIN verified successfully');
@@ -79,7 +60,7 @@ const SettingsPage: React.FC = () => {
     }
   };
 
-  const handleSaveSettings = async (e: React.FormEvent) => {
+  const handleSaveSecuritySettings = async (e: React.FormEvent) => {
     e.preventDefault();
     
     try {
@@ -90,32 +71,19 @@ const SettingsPage: React.FC = () => {
         return;
       }
       
-      // Save API keys
-      await SettingOperations.upsert({ provider: 'apiKeys', value: apiKeys });
-      
       // Save PIN if set
       if (pin) {
         await SettingOperations.upsert({ provider: 'pin', value: pin });
         setHasPinSet(true);
       }
       
-      // Save active service
-      await SettingOperations.upsert({ provider: 'activeService', value: activeService });
-      
-      setMessage('Settings saved successfully');
-      toast.success("Settings saved successfully");
+      setMessage('Security settings saved successfully');
+      toast.success("Security settings saved successfully");
     } catch (error) {
       console.error('Error saving settings:', error);
       setMessage('Error saving settings');
       toast.error('Error saving settings');
     }
-  };
-
-  const handleApiKeyChange = (service: string, value: string) => {
-    setApiKeys(prev => ({
-      ...prev,
-      [service]: value
-    }));
   };
 
   if (isLoading) {
@@ -134,7 +102,7 @@ const SettingsPage: React.FC = () => {
   }
 
   // If PIN is set and not yet entered, show PIN entry form
-  if (hasPinSet && !apiKeys.openrouter && !apiKeys.openai) {
+  if (hasPinSet && !currentPin) {
     return (
       <div className="pt-3 pb-6">
         <Card className="border shadow-sm w-full">
@@ -184,103 +152,56 @@ const SettingsPage: React.FC = () => {
   }
 
   return (
-    <div className="pt-3 pb-6">
+    <div className="pt-3 pb-6 space-y-6">
+      {/* AI Provider Settings */}
+      <LLMSettings />
+      
+      {/* Security Settings */}
       <Card className="border shadow-sm w-full">
         <CardHeader className="pb-4">
-          <CardTitle className="text-xl font-bold">Settings</CardTitle>
+          <CardTitle className="flex items-center text-xl">
+            <ShieldCheck className="mr-2 h-5 w-5 text-primary" />
+            Security Settings
+          </CardTitle>
           <CardDescription>
-            Manage your API keys and security settings
+            Manage security settings for your API keys
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSaveSettings} className="space-y-6">
-            <div className="space-y-4">
-              <div className="flex items-center">
-                <Key className="mr-2 h-5 w-5 text-primary" />
-                <h3 className="text-lg font-medium">API Keys</h3>
-              </div>
-              <Separator className="my-2" />
-              
-              <div className="space-y-2">
-                <Label htmlFor="activeService">Active Service</Label>
-                <Select 
-                  value={activeService} 
-                  onValueChange={setActiveService}
-                >
-                  <SelectTrigger id="activeService" className="w-full">
-                    <SelectValue placeholder="Select service" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="openrouter">OpenRouter</SelectItem>
-                    <SelectItem value="openai">OpenAI</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="openrouterKey">OpenRouter API Key</Label>
-                  <Input
-                    id="openrouterKey"
-                    type="password"
-                    value={apiKeys.openrouter}
-                    onChange={(e) => handleApiKeyChange('openrouter', e.target.value)}
-                    placeholder="Enter your OpenRouter API key"
-                    autoComplete="off"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="openaiKey">OpenAI API Key</Label>
-                  <Input
-                    id="openaiKey"
-                    type="password"
-                    value={apiKeys.openai}
-                    onChange={(e) => handleApiKeyChange('openai', e.target.value)}
-                    placeholder="Enter your OpenAI API key"
-                    autoComplete="off"
-                  />
-                </div>
-              </div>
+          <form onSubmit={handleSaveSecuritySettings} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="pin">PIN (Optional)</Label>
+              <Input
+                id="pin"
+                type="password"
+                value={pin}
+                onChange={(e) => setPin(e.target.value)}
+                placeholder={hasPinSet ? "Enter new PIN or leave blank to keep current" : "Set a PIN to encrypt your API keys"}
+                autoComplete="new-password"
+              />
             </div>
             
-            <div className="space-y-4 pt-2">
-              <div className="flex items-center">
-                <ShieldCheck className="mr-2 h-5 w-5 text-primary" />
-                <h3 className="text-lg font-medium">Security</h3>
-              </div>
-              <Separator className="my-2" />
-              
+            {pin && (
               <div className="space-y-2">
-                <Label htmlFor="pin">PIN (Optional)</Label>
+                <Label htmlFor="confirmPin">Confirm PIN</Label>
                 <Input
-                  id="pin"
+                  id="confirmPin"
                   type="password"
-                  value={pin}
-                  onChange={(e) => setPin(e.target.value)}
-                  placeholder={hasPinSet ? "Enter new PIN or leave blank to keep current" : "Set a PIN to encrypt your API keys"}
+                  value={confirmPin}
+                  onChange={(e) => setConfirmPin(e.target.value)}
+                  placeholder="Confirm your PIN"
                   autoComplete="new-password"
                 />
               </div>
-              
-              {pin && (
-                <div className="space-y-2">
-                  <Label htmlFor="confirmPin">Confirm PIN</Label>
-                  <Input
-                    id="confirmPin"
-                    type="password"
-                    value={confirmPin}
-                    onChange={(e) => setConfirmPin(e.target.value)}
-                    placeholder="Confirm your PIN"
-                    autoComplete="new-password"
-                  />
-                </div>
-              )}
-            </div>
+            )}
             
-            <Button type="submit" className="w-full flex items-center justify-center">
+            <Button 
+              type="submit" 
+              className="w-full flex items-center justify-center"
+              disabled={!pin && !hasPinSet}
+            >
               <Save className="mr-2 h-4 w-4" />
-              Save Settings
+              Save Security Settings
             </Button>
             
             {message && (

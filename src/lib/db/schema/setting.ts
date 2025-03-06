@@ -1,7 +1,7 @@
 import type { Table } from 'dexie';
 
 export interface Setting {
-  id: string;             // UUID v4
+  id?: string;            // UUID v4, optional since Dexie generates it
   provider: string;       // Service provider (e.g., 'arxiv', 'openai')
   value: any;
   apiKey?: string;        // API key for the service
