@@ -64,13 +64,16 @@ export class OpenAIProvider extends BaseLLMProvider {
       // Try to use the makeValidationRequest method, but fall back to format validation
       // if we encounter what appears to be a CORS issue
       try {
+        // Create a validation request body with the updated parameters
+        const validationBody = {
+          model: this.config.defaultModel,
+          messages: [{ role: 'user', content: 'test' }],
+          max_completion_tokens: 5
+        };
+        
         return await this.makeValidationRequest(
           this.config.endpoints.chat,
-          {
-            model: this.config.defaultModel,
-            messages: [{ role: 'user', content: 'test' }],
-            max_tokens: 5,
-          },
+          validationBody,
           { 'Authorization': `Bearer ${key}` },
           key
         );
@@ -98,7 +101,7 @@ export class OpenAIProvider extends BaseLLMProvider {
       model: string;
       messages: Array<{role: string; content: string}>;
       temperature?: number;
-      max_tokens?: number;
+      max_completion_tokens?: number;
       stream?: boolean;
       reasoning_effort?: string;
     } = {
@@ -109,9 +112,9 @@ export class OpenAIProvider extends BaseLLMProvider {
     // Check if the model is o3-mini, which has different parameter support
     const isO3Model = request.model.includes('o3-');
     
-    // Add optional parameters only if they're defined AND supported by the model
+    // Add optional parameters only if they're defined
     if (request.maxTokens) {
-      payload.max_tokens = request.maxTokens;
+      payload.max_completion_tokens = request.maxTokens;
     }
     
     if (request.stream) {
