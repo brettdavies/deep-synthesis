@@ -26,7 +26,7 @@ export default function BriefsPage() {
   const briefOps = useBriefOperations();
 
   const handleCreateBrief = () => {
-    navigate('/new-brief');
+    navigate('/brief/new');
   };
 
   // Render loading state

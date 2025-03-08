@@ -11,6 +11,7 @@ import { formatDate } from '@/lib/utils/formatting/date';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle, ArrowLeft } from 'lucide-react';
 import { Loader } from '@/components/ui/loader';
+import { useBriefOperations } from '@/hooks/useBriefOperations';
 
 const BriefPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -19,6 +20,9 @@ const BriefPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('review');
+
+  // Get brief operations helpers
+  const { handleEditBrief } = useBriefOperations();
 
   useEffect(() => {
     const loadBrief = async () => {
@@ -152,15 +156,25 @@ const BriefPage: React.FC = () => {
   return (
     <div className="pt-3 pb-6">
       <div className="flex justify-between items-center mb-6">
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          onClick={() => navigate('/briefs')} 
-          className="flex items-center text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4 mr-1" />
-          Back to Briefs
-        </Button>
+        <div className="flex items-center space-x-2">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => navigate('/briefs')} 
+            className="flex items-center text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            Back to Briefs
+          </Button>
+          
+          <Button 
+            variant="outline"
+            size="sm"
+            onClick={() => id && handleEditBrief(id)}
+          >
+            Edit Brief
+          </Button>
+        </div>
       </div>
       <Card className="border shadow-sm w-full">
         <CardHeader className="pb-4">

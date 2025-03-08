@@ -6,7 +6,7 @@ import { BRIEF_SCHEMA } from './brief';
 import { SETTING_SCHEMA } from './setting';
 
 export type { PaperTable } from './paper';
-export type { BriefTable } from './brief';
+export type { BriefTable, ChatMessage } from './brief';
 export type { SettingTable } from './setting';
 
 export interface ResearchDBSchema {
@@ -15,7 +15,7 @@ export interface ResearchDBSchema {
   briefs: BriefTable;
 }
 
-export const DB_VERSION = 1;
+export const DB_VERSION = 2;
 
 export const DB_SCHEMA = {
   papers: PAPER_SCHEMA,

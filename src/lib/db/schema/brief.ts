@@ -1,5 +1,12 @@
 import type { Table } from 'dexie';
 
+export interface ChatMessage {
+  id: string;        // UUID v4
+  role: "ai" | "user";
+  content: string;
+  timestamp: Date;
+}
+
 export interface Brief {
   id: string;             // UUID v4
   title: string;
@@ -12,10 +19,11 @@ export interface Brief {
   }[];
   bibtex: string;
   date: Date;
+  chatMessages?: ChatMessage[];  // Chat history with timestamps
   createdAt: Date;
   updatedAt: Date;
 }
 
 export type BriefTable = Table<Brief>;
 
-export const BRIEF_SCHEMA = 'id, title, query, review, references, bibtex, date, createdAt, updatedAt'; 
+export const BRIEF_SCHEMA = 'id, title, query, review, references, bibtex, date, chatMessages, createdAt, updatedAt'; 

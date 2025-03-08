@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { PlusCircle, Trash } from 'lucide-react';
+import { PlusCircle, Trash, Layers } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 type BriefsHeaderProps = {
@@ -15,7 +15,11 @@ export function BriefsHeader({ briefsCount, onDeleteAllBriefs }: BriefsHeaderPro
   const navigate = useNavigate();
 
   const handleCreateBrief = () => {
-    navigate('/new-brief');
+    navigate('/brief/new');
+  };
+
+  const handleCreateModularBrief = () => {
+    navigate('/modular-brief');
   };
 
   return (
@@ -35,6 +39,17 @@ export function BriefsHeader({ briefsCount, onDeleteAllBriefs }: BriefsHeaderPro
             <PlusCircle className="h-4 w-4" />
             <span>New Brief</span>
           </Button>
+          
+          <Button 
+            variant="outline" 
+            size="sm"
+            className="flex items-center space-x-1"
+            onClick={handleCreateModularBrief}
+          >
+            <Layers className="h-4 w-4" />
+            <span>New Modular Brief</span>
+          </Button>
+          
           {briefsCount > 0 && (
             <Button 
               variant="destructive" 

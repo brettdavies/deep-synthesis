@@ -4,9 +4,10 @@ import { DB_VERSION, DB_SCHEMA } from './schema/index';
 import { paperHooks, briefHooks, settingHooks } from './hooks/index';
 import { Migration, type MigrationContext } from './utils/migrations';
 import { DatabaseError, TransactionError } from './utils/errors';
+import { getMigrations } from './migrations';
 
 // Define our database
-class ResearchDB extends Dexie {
+export class ResearchDB extends Dexie {
   papers!: ResearchDBSchema['papers'];
   settings!: ResearchDBSchema['settings'];
   briefs!: ResearchDBSchema['briefs'];
@@ -102,7 +103,10 @@ class ResearchDB extends Dexie {
 }
 
 // Create a singleton instance
-const db = new ResearchDB();
+export const db = new ResearchDB();
+
+// Register migrations
+getMigrations(db);
 
 // Export database instance and operations
 export default db;
