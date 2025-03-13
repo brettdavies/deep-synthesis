@@ -31,6 +31,9 @@ function RefinementStepComponent({ briefId, onComplete, onBack }: StepProps) {
   // Initialize chat messages from brief or set a system message
   useEffect(() => {
     if (brief?.chatMessages && brief.chatMessages.length > 0) {
+      console.log('[RefinementStep] Loading existing chat messages:', {
+        messageCount: brief.chatMessages.length
+      });
       setMessages(brief.chatMessages);
       
       // Extract the latest refined query from the most recent AI message
@@ -48,6 +51,10 @@ function RefinementStepComponent({ briefId, onComplete, onBack }: StepProps) {
         setRefinedQuery(brief.query);
       }
     } else if (brief?.query) {
+      console.log('[RefinementStep] No chat messages found, creating initial AI message for query:', {
+        query: brief.query
+      });
+      
       // Initial state with query but no messages
       setRefinedQuery(brief.query);
       
@@ -78,9 +85,23 @@ function RefinementStepComponent({ briefId, onComplete, onBack }: StepProps) {
           setMessages([initialMessage]);
           
           // Also save it to the database so it persists
-          updateBrief({ 
-            chatMessages: [initialMessage] 
+          console.log('[RefinementStep] Saving initial AI message to database:', {
+            initialMessage,
+            briefId
           });
+          
+          // Make sure we're passing a clean ChatMessage without any extra properties
+          const cleanMessage: ChatMessage = {
+            id: initialMessage.id,
+            role: initialMessage.role,
+            content: initialMessage.content,
+            timestamp: initialMessage.timestamp
+          };
+          
+          await updateBrief({ 
+            chatMessages: [cleanMessage] 
+          });
+          
         } catch (error) {
           handleError(error);
           // Provide a fallback message in the UI only (not saved to DB)
@@ -148,6 +169,12 @@ function RefinementStepComponent({ briefId, onComplete, onBack }: StepProps) {
       
       // Save only the user message to database
       const updatedMessages = [...messages.filter(m => !m.pending), userMsg];
+      
+      console.log('[RefinementStep] Saving user message to database:', {
+        updatedMessages,
+        briefId
+      });
+      
       await updateBrief({ 
         chatMessages: updatedMessages 
       });
@@ -178,9 +205,23 @@ function RefinementStepComponent({ briefId, onComplete, onBack }: StepProps) {
       setMessages(prev => [...prev.filter(m => !m.pending), aiMsg]);
       
       // Update brief with the new messages including AI response
-      await updateBrief({
-        chatMessages: [...updatedMessages, aiMsg]
+      const finalMessages = [...updatedMessages, aiMsg];
+      
+      console.log('[RefinementStep] Saving AI response to database:', {
+        finalMessages,
+        briefId,
+        messageCount: finalMessages.length
       });
+      
+      // Ensure we're working with valid ChatMessage objects without the pending property
+      const cleanMessages = finalMessages.map(({ id, role, content, timestamp }) => ({
+        id, role, content, timestamp
+      }));
+      
+      await updateBrief({
+        chatMessages: cleanMessages
+      });
+      
     } catch (error) {
       handleError(error);
       
@@ -209,9 +250,32 @@ function RefinementStepComponent({ briefId, onComplete, onBack }: StepProps) {
       return;
     }
     
+    // Create a system message to mark the step as completed
+    const completionMessage: ChatMessage = {
+      id: `system-${Date.now()}`,
+      role: 'ai', // Using 'ai' role for compatibility 
+      content: `__REFINEMENT_COMPLETE__: User saved refined query: "${refinedQuery.trim()}"`,
+      timestamp: new Date()
+    };
+    
+    // Get existing messages or empty array
+    const existingMessages = brief?.chatMessages || [];
+    
+    // Only add the completion message if it doesn't exist already
+    const hasCompletionMessage = existingMessages.some(msg => 
+      msg.content.includes('__REFINEMENT_COMPLETE__')
+    );
+    
+    // Update the chat messages with our completion marker
+    const updatedMessages = hasCompletionMessage 
+      ? existingMessages 
+      : [...existingMessages, completionMessage];
+    
+    // Save both the refined query and updated chat messages
     const success = await updateBrief({
       query: refinedQuery.trim(),
-      title: refinedQuery.length > 50 ? refinedQuery.substring(0, 50) + '...' : refinedQuery
+      title: refinedQuery.length > 50 ? refinedQuery.substring(0, 50) + '...' : refinedQuery,
+      chatMessages: updatedMessages
     });
     
     if (success) {
@@ -353,8 +417,19 @@ function RefinementStepComponent({ briefId, onComplete, onBack }: StepProps) {
 
 // Define step completion criteria based on brief data
 function isStepComplete(brief: Brief): boolean {
-  // Step is complete if there's at least one AI message in the chat
-  return !!brief.chatMessages && brief.chatMessages.some(msg => msg.role === 'ai');
+  // Check if there are chat messages with our completion marker
+  const isExplicitlyComplete = brief.chatMessages?.some(msg => 
+    msg.content.includes('__REFINEMENT_COMPLETE__')
+  ) || false;
+  
+  // For debugging
+  console.log('[RefinementStep] isStepComplete:', {
+    isExplicitlyComplete,
+    chatMessagesExist: !!brief.chatMessages,
+    chatMessagesLength: brief.chatMessages?.length || 0
+  });
+  
+  return isExplicitlyComplete;
 }
 
 // Export the step definition

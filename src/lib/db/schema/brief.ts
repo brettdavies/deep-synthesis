@@ -22,8 +22,10 @@ export interface Brief {
   chatMessages?: ChatMessage[];  // Chat history with timestamps
   createdAt: Date;
   updatedAt: Date;
+  lastOpenedAt?: Date;     // Tracking when brief was last viewed
+  isComplete?: boolean;    // Flag indicating if brief is complete
 }
 
 export type BriefTable = Table<Brief>;
 
-export const BRIEF_SCHEMA = 'id, title, query, review, references, bibtex, date, chatMessages, createdAt, updatedAt'; 
+export const BRIEF_SCHEMA = 'id, title, query, review, references, bibtex, date, chatMessages, createdAt, updatedAt, lastOpenedAt, isComplete'; 

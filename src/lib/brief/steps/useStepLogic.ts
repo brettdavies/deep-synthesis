@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/lib/db';
 import type { Brief } from '@/lib/db/schema/brief';
 import toast from 'react-hot-toast';
+import { BriefOperations } from '@/lib/db/operations/briefs';
 
 /**
  * Custom hook that encapsulates common step functionality
@@ -32,7 +33,8 @@ export function useStepLogic(briefId: string) {
     
     try {
       setIsLoading(true);
-      await db.briefs.update(briefId, {
+      // Use BriefOperations instead of direct db access
+      await BriefOperations.update(briefId, {
         ...updates,
         updatedAt: new Date()
       });

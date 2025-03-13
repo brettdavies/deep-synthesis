@@ -5,9 +5,14 @@ type Modifications<T> = Partial<T>;
 
 const addTimestampsAndUUID = (obj: Brief) => {
   const now = new Date();
-  obj.id = generateUUID();
-  obj.createdAt = now;
-  obj.updatedAt = now;
+  // Only generate a UUID if one doesn't already exist
+  if (!obj.id) {
+    obj.id = generateUUID();
+  }
+  
+  // Always add timestamps
+  obj.createdAt = obj.createdAt || now;
+  obj.updatedAt = obj.updatedAt || now;
 };
 
 const updateTimestamp = (modifications: Modifications<Brief>) => {

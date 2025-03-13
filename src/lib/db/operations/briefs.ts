@@ -1,6 +1,6 @@
 import type { Brief, ChatMessage } from '../schema/brief';
 import db from '../index';
-import { v4 as uuidv4 } from 'uuid';
+import { generateUUID, isValidUUID } from '@/lib/utils/id/uuid';
 
 export class BriefOperations {
   /**
@@ -122,7 +122,7 @@ export class BriefOperations {
       if (!brief) throw new Error(`Brief with id ${briefId} not found`);
       
       const newMessage: ChatMessage = {
-        id: uuidv4(),
+        id: generateUUID(),
         ...message,
         timestamp: new Date()
       };
@@ -182,7 +182,7 @@ export class BriefOperations {
       if (!brief) throw new Error(`Brief with id ${briefId} not found`);
       
       const chatMessages: ChatMessage[] = messages.map(msg => ({
-        id: uuidv4(),
+        id: generateUUID(),
         ...msg,
         timestamp: new Date()
       }));
@@ -214,47 +214,56 @@ export class BriefOperations {
   }
 
   /**
-   * Validates if a string is a valid UUID
-   * @param id The string to validate
-   * @returns true if the string is a valid UUID, false otherwise
-   */
-  private static isValidUUID(id: string): boolean {
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    return uuidRegex.test(id);
-  }
-
-  /**
    * Create an initial brief with just the query
    * @param query The initial query (can be empty)
    * @param customId Optional custom ID for the brief (if not provided, a random UUID will be generated)
    */
   static async createInitialBrief(query: string, customId?: string): Promise<string> {
     return await db.transaction('rw', db.briefs, async () => {
-      // Validate customId if provided
-      if (customId && !BriefOperations.isValidUUID(customId)) {
-        throw new Error('Invalid UUID format for customId');
+      try {
+        // Validate customId if provided
+        if (customId && !isValidUUID(customId)) {
+          throw new Error('Invalid UUID format for customId');
+        }
+        
+        const briefTitle = query.length > 50 ? query.substring(0, 50) + '...' : query;
+        const newBriefId = customId || generateUUID();
+        
+        console.log('[createInitialBrief] Generated UUID:', newBriefId);
+        
+        // Create an initial brief with just the query
+        const initialBrief: Brief = {
+          id: newBriefId,
+          title: briefTitle,
+          query: query,
+          review: '', // Empty initially
+          references: [], // Empty initially
+          bibtex: '',
+          date: new Date(),
+          chatMessages: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          lastOpenedAt: new Date(),
+          isComplete: false
+        };
+        
+        // Add the brief to the database
+        await db.briefs.add(initialBrief);
+        
+        // Verify the brief was added by retrieving it
+        const savedBrief = await db.briefs.get(newBriefId);
+        if (!savedBrief) {
+          console.error(`[createInitialBrief] Failed to save brief with ID: ${newBriefId}`, initialBrief);
+          throw new Error(`Failed to save brief with ID ${newBriefId}`);
+        }
+        
+        console.log('[DB Operation] Created and verified brief:', savedBrief);
+        
+        return newBriefId;
+      } catch (error) {
+        console.error('[DB Operation] Error creating brief:', error);
+        throw error;
       }
-      
-      const briefTitle = query.length > 50 ? query.substring(0, 50) + '...' : query;
-      const newBriefId = customId || crypto.randomUUID();
-      
-      // Create an initial brief with just the query
-      const initialBrief: Brief = {
-        id: newBriefId,
-        title: briefTitle,
-        query: query,
-        review: '', // Empty initially
-        references: [], // Empty initially
-        bibtex: '',
-        date: new Date(),
-        chatMessages: [],
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
-      
-      await db.briefs.add(initialBrief);
-      console.log('[DB Operation] Created initial brief:', initialBrief);
-      return newBriefId;
     });
   }
 
