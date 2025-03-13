@@ -15,7 +15,7 @@ export function BriefsHeader({ briefsCount, onDeleteAllBriefs }: BriefsHeaderPro
   const navigate = useNavigate();
 
   const handleCreateBrief = () => {
-    navigate('/new-brief');
+    navigate('/brief/new');
   };
 
   return (
@@ -35,6 +35,7 @@ export function BriefsHeader({ briefsCount, onDeleteAllBriefs }: BriefsHeaderPro
             <PlusCircle className="h-4 w-4" />
             <span>New Brief</span>
           </Button>
+          
           {briefsCount > 0 && (
             <Button 
               variant="destructive" 

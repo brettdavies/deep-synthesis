@@ -20,7 +20,7 @@ const HomePage: React.FC = () => {
           <Button 
             size="lg" 
             className="mt-4 h-12 px-6 text-base"
-            onClick={() => navigate('/new-brief')}
+            onClick={() => navigate('/brief/new')}
           >
             <FontAwesomeIcon icon={faPlus} className="mr-2 h-4 w-4" />
             Start a New Brief
@@ -95,7 +95,7 @@ const HomePage: React.FC = () => {
           <Button 
             size="lg" 
             className="mt-4 h-12 px-6 text-base"
-            onClick={() => navigate('/new-brief')}
+            onClick={() => navigate('/brief/new')}
           >
             <FontAwesomeIcon icon={faPlus} className="mr-2 h-4 w-4" />
             Create Your First Brief

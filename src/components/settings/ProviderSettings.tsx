@@ -48,7 +48,7 @@ export function ProviderSettings({
     switch (provider.toLowerCase()) {
       case 'openai': return 'sk-...';
       case 'anthropic': return 'sk-ant-...';
-      case 'grok': return 'grok-...';
+      case 'grok': return 'xai-...';
       case 'openrouter': return 'sk-or-...';
       case 'gemini': return 'AIza...';
       default: return 'Your API Key';

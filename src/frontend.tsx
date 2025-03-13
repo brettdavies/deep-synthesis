@@ -8,17 +8,20 @@
  */
 
 import { createRoot } from "react-dom/client";
-import { StrictMode } from "react";
+// StrictMode commented out temporarily to reduce redundant operations on initial load
+// See: https://reactjs.org/docs/strict-mode.html#detecting-unexpected-side-effects
+// import { StrictMode } from "react";
 import { App } from "./App";
 
-// Import the CSS file directly
+// Import the CSS files
 import "./styles/globals.css";
+import "./styles/markdown.css";
 
 const elem = document.getElementById("root")!;
 const app = (
-  <StrictMode>
+  // <StrictMode>
     <App />
-  </StrictMode>
+  // </StrictMode>
 );
 
 if (import.meta.hot) {

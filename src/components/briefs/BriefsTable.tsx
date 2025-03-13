@@ -38,7 +38,14 @@ export function BriefsTable({ briefs, onView, onDelete }: BriefsTableProps) {
             {briefs.map(brief => (
               <TableRow key={brief.id}>
                 <TableCell>
-                  <div className="line-clamp-2 font-medium">{brief.title}</div>
+                  <div 
+                    className="line-clamp-2 font-medium cursor-pointer hover:text-primary transition-colors"
+                    onClick={() => onView(brief.id!)}
+                    role="button"
+                    tabIndex={0}
+                  >
+                    {brief.title}
+                  </div>
                 </TableCell>
                 <TableCell className="text-sm">
                   {formatDate(brief.createdAt)}

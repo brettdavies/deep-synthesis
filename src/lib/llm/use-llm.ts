@@ -3,6 +3,23 @@ import { ProviderRegistry } from './provider-registry';
 import { SettingOperations } from '@/lib/db/operations/settings';
 import type { LLMRequest, LLMResponse, ProviderSettings, ModelInfo } from './types';
 
+/**
+ * Custom hook for interacting with Language Learning Models (LLMs).
+ * Provides functionality for completing prompts, managing provider settings,
+ * and handling model configurations.
+ * 
+ * @returns {Object} An object containing LLM interaction methods and state
+ * @property {boolean} loading - Whether an LLM operation is in progress
+ * @property {string|null} error - Error message if an operation failed
+ * @property {Function} completeWithAI - Send a prompt to an LLM provider
+ * @property {Function} validateApiKey - Validate an API key for a provider
+ * @property {Function} saveProviderSettings - Save settings for a provider
+ * @property {Function} getProviders - Get list of available providers
+ * @property {Function} getProviderModels - Get models for a provider
+ * @property {Function} getAvailableModels - Get available models for a provider
+ * @property {Function} getProviderSettings - Get settings for a provider
+ * @property {Function} getEnabledModels - Get enabled models for a provider
+ */
 export function useLLM() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,6 +74,21 @@ export function useLLM() {
     loadSettings();
   }, []);
 
+  /**
+   * Sends a prompt to an LLM provider and returns the response.
+   * Uses the provider's configured model and API key from settings.
+   * 
+   * @param {string} providerName - Name of the LLM provider (e.g., 'openai', 'anthropic')
+   * @param {string} prompt - The prompt to send to the LLM
+   * @param {Object} [options] - Optional configuration for the completion
+   * @param {number} [options.temperature] - Sampling temperature (0-1)
+   * @param {number} [options.maxTokens] - Maximum tokens to generate
+   * @param {boolean} [options.stream] - Whether to stream the response
+   * @param {'high'|'medium'|'low'} [options.reasoningEffort] - Reasoning effort for o3 models
+   * @param {Object} [options.responseFormat] - Response format configuration
+   * @returns {Promise<LLMResponse>} The LLM's response
+   * @throws {Error} If no API key is configured or the request fails
+   */
   const completeWithAI = async (
     providerName: string,
     prompt: string,
@@ -65,6 +97,14 @@ export function useLLM() {
       maxTokens?: number;
       stream?: boolean;
       reasoningEffort?: 'high' | 'medium' | 'low';
+      responseFormat?: {
+        type: 'json_object' | 'json_schema';
+        json_schema?: {
+          name: string;
+          strict: boolean;
+          schema: Record<string, any>;
+        };
+      };
     }
   ): Promise<LLMResponse> => {
     setLoading(true);
@@ -85,6 +125,7 @@ export function useLLM() {
         maxTokens: options?.maxTokens,
         stream: options?.stream,
         reasoningEffort: options?.reasoningEffort,
+        responseFormat: options?.responseFormat,
       };
 
       const response = await provider.chat(request);
@@ -98,6 +139,14 @@ export function useLLM() {
     }
   };
 
+  /**
+   * Validates an API key for a specific provider.
+   * Attempts to make a test request to verify the key works.
+   * 
+   * @param {string} providerName - Name of the LLM provider
+   * @param {string} apiKey - API key to validate
+   * @returns {Promise<boolean>} Whether the key is valid
+   */
   const validateApiKey = async (
     providerName: string,
     apiKey: string
@@ -132,6 +181,14 @@ export function useLLM() {
     }
   };
 
+  /**
+   * Saves provider settings to both the registry and persistent storage.
+   * Ensures settings have the correct structure before saving.
+   * 
+   * @param {string} providerName - Name of the LLM provider
+   * @param {ProviderSettings} settings - Provider settings to save
+   * @returns {Promise<void>}
+   */
   const saveProviderSettings = async (
     providerName: string,
     settings: ProviderSettings
@@ -166,10 +223,21 @@ export function useLLM() {
     }
   };
 
+  /**
+   * Gets a list of all available provider names.
+   * 
+   * @returns {string[]} Array of provider names
+   */
   const getProviders = () => {
     return registry.getAvailableProviderNames();
   };
 
+  /**
+   * Gets all models configured for a specific provider.
+   * 
+   * @param {string} providerName - Name of the LLM provider
+   * @returns {ModelInfo[]} Array of model information
+   */
   const getProviderModels = (providerName: string) => {
     try {
       const provider = registry.getProvider(providerName);
@@ -179,6 +247,14 @@ export function useLLM() {
     }
   };
 
+  /**
+   * Fetches available models from a provider's API.
+   * Can use either configured API key or a temporary override.
+   * 
+   * @param {string} providerName - Name of the LLM provider
+   * @param {string} [apiKeyOverride] - Optional API key to use instead of configured one
+   * @returns {Promise<ModelInfo[]>} Array of available models
+   */
   const getAvailableModels = async (
     providerName: string,
     apiKeyOverride?: string
@@ -209,11 +285,23 @@ export function useLLM() {
     }
   };
 
+  /**
+   * Gets current settings for a specific provider.
+   * 
+   * @param {string} providerName - Name of the LLM provider
+   * @returns {ProviderSettings|undefined} Provider settings if configured
+   */
   const getProviderSettings = (providerName: string) => {
     return registry.getProviderSettings(providerName);
   };
 
-  // Get only enabled models for a provider
+  /**
+   * Gets only the enabled models for a specific provider.
+   * If no models are explicitly disabled, returns all models.
+   * 
+   * @param {string} providerName - Name of the LLM provider
+   * @returns {ModelInfo[]} Array of enabled models
+   */
   const getEnabledModels = (providerName: string): ModelInfo[] => {
     const settings = registry.getProviderSettings(providerName);
     const allModels = getProviderModels(providerName);
@@ -239,5 +327,6 @@ export function useLLM() {
     getAvailableModels,
     getProviderSettings,
     getEnabledModels,
+    registry,
   };
 } 

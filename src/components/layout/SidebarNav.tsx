@@ -38,9 +38,9 @@ const SidebarNav: React.FC = () => {
       {/* Main navigation items */}
       <div className="flex-1 p-4 space-y-2">
         <Link 
-          to="/new-brief" 
+          to="/brief/new" 
           className="nav-link"
-          aria-current={location.pathname === '/new-brief' ? 'page' : undefined}
+          aria-current={location.pathname === '/brief/new' ? 'page' : undefined}
         >
           <FontAwesomeIcon icon={faPlus} className="nav-icon" />
           New Brief

@@ -1,15 +1,33 @@
 import Dexie from 'dexie';
+import type { Table } from 'dexie';
 import type { ResearchDBSchema } from './schema/index';
 import { DB_VERSION, DB_SCHEMA } from './schema/index';
 import { paperHooks, briefHooks, settingHooks } from './hooks/index';
 import { Migration, type MigrationContext } from './utils/migrations';
 import { DatabaseError, TransactionError } from './utils/errors';
+import { getMigrations } from './migrations';
+import type { Paper } from './schema/paper';
+import type { Brief } from './schema/brief';
+import type { Setting } from './schema/setting';
+import type { PaperBriefAssociation } from './schema/paper-brief';
+import { PAPER_SCHEMA } from './schema/paper';
+import { BRIEF_SCHEMA } from './schema/brief';
+import { SETTING_SCHEMA } from './schema/setting';
+import { PAPER_BRIEF_ASSOCIATION_SCHEMA } from './schema/paper-brief';
+
+export interface ResearchDBSchema {
+  papers: Table<Paper>;
+  briefs: Table<Brief>;
+  settings: Table<Setting>;
+  paperBriefAssociations: Table<PaperBriefAssociation>;
+}
 
 // Define our database
-class ResearchDB extends Dexie {
-  papers!: ResearchDBSchema['papers'];
-  settings!: ResearchDBSchema['settings'];
-  briefs!: ResearchDBSchema['briefs'];
+export class ResearchDB extends Dexie {
+  papers!: Table<Paper>;
+  settings!: Table<Setting>;
+  briefs!: Table<Brief>;
+  paperBriefAssociations!: Table<PaperBriefAssociation>;
   private migration: Migration;
 
   constructor() {
@@ -18,7 +36,12 @@ class ResearchDB extends Dexie {
     
     // Define tables and indexes
     this.version(DB_VERSION)
-      .stores(DB_SCHEMA)
+      .stores({
+        papers: PAPER_SCHEMA,
+        briefs: BRIEF_SCHEMA,
+        settings: SETTING_SCHEMA,
+        paperBriefAssociations: PAPER_BRIEF_ASSOCIATION_SCHEMA
+      })
       .upgrade(async (trans: any) => {
         const context: MigrationContext = {
           oldVersion: trans.oldVersion || 0,
@@ -56,11 +79,12 @@ class ResearchDB extends Dexie {
    */
   async clearAllData(): Promise<void> {
     try {
-      await this.transaction('rw', [this.papers, this.settings, this.briefs], async () => {
+      await this.transaction('rw', [this.papers, this.settings, this.briefs, this.paperBriefAssociations], async () => {
         await Promise.all([
           this.papers.clear(),
           this.settings.clear(),
-          this.briefs.clear()
+          this.briefs.clear(),
+          this.paperBriefAssociations.clear()
         ]);
       });
     } catch (error) {
@@ -76,7 +100,8 @@ class ResearchDB extends Dexie {
       return {
         papers: await this.migration.backupTable(this.papers),
         settings: await this.migration.backupTable(this.settings),
-        briefs: await this.migration.backupTable(this.briefs)
+        briefs: await this.migration.backupTable(this.briefs),
+        paperBriefAssociations: await this.migration.backupTable(this.paperBriefAssociations)
       };
     } catch (error) {
       throw new DatabaseError('Failed to backup database', error as Error);
@@ -88,11 +113,12 @@ class ResearchDB extends Dexie {
    */
   async restore(backup: Record<string, any[]>): Promise<void> {
     try {
-      await this.transaction('rw', [this.papers, this.settings, this.briefs], async () => {
+      await this.transaction('rw', [this.papers, this.settings, this.briefs, this.paperBriefAssociations], async () => {
         await Promise.all([
           this.migration.restoreTable(this.papers, backup.papers),
           this.migration.restoreTable(this.settings, backup.settings),
-          this.migration.restoreTable(this.briefs, backup.briefs)
+          this.migration.restoreTable(this.briefs, backup.briefs),
+          this.migration.restoreTable(this.paperBriefAssociations, backup.paperBriefAssociations)
         ]);
       });
     } catch (error) {
@@ -102,8 +128,12 @@ class ResearchDB extends Dexie {
 }
 
 // Create a singleton instance
-const db = new ResearchDB();
+export const db = new ResearchDB();
 
-// Export database instance and operations
+// Register migrations
+getMigrations(db);
+
+// Export database instance, operations and types
 export default db;
-export * from './operations'; 
+export * from './operations';
+export type { Table }; 

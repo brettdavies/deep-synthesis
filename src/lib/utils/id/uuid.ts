@@ -1,11 +1,9 @@
-import { v4 as uuidv4 } from 'uuid';
-
 /**
  * Generate a new UUID v4
  * @returns A UUID v4 string
  */
 export function generateUUID(): string {
-  return uuidv4();
+  return crypto.randomUUID();
 }
 
 /**
