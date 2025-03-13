@@ -91,6 +91,7 @@ export const PaperList: React.FC<PaperListProps> = ({
           </div>
         </div>
 
+        {/* Calculate Relevancy Scores button commented out
         {onCalculateRelevancy && (
           <Button 
             variant="outline" 
@@ -108,6 +109,7 @@ export const PaperList: React.FC<PaperListProps> = ({
             )}
           </Button>
         )}
+        */}
       </div>
 
       {papers.length === 0 && !isGeneratingQueries && !isLoading && (
