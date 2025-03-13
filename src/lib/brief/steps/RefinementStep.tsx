@@ -247,10 +247,9 @@ function RefinementStepComponent({ briefId, onComplete, onBack }: StepProps) {
       // Add the completion message
       await BriefOperations.addChatMessage(briefId, completionMessage);
       
-      // Save the refined query
+      // Save the refined query - only update the query, not the title
       const success = await updateBrief({
-        query: refinedQuery.trim(),
-        title: refinedQuery.length > 50 ? refinedQuery.substring(0, 50) + '...' : refinedQuery
+        query: refinedQuery.trim()
       });
       
       if (success) {

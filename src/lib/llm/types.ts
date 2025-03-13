@@ -8,6 +8,8 @@ export type ModelCapabilities = {
   streaming: boolean;
   functionCalling: boolean;
   vision: boolean;
+  structuredOutput: boolean;
+  jsonMode: boolean;
 };
 
 export type ModelInfo = {
@@ -41,6 +43,14 @@ export interface LLMRequest {
   temperature?: number;
   stream?: boolean;
   reasoningEffort?: 'high' | 'medium' | 'low'; // For o3-mini models
+  responseFormat?: {
+    type: 'json_object' | 'json_schema';
+    json_schema?: {
+      name: string;
+      strict: boolean;
+      schema: Record<string, any>;
+    };
+  };
 }
 
 export interface ProviderConfig {

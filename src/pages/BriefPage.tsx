@@ -9,20 +9,38 @@ import ReactMarkdown from 'react-markdown';
 import { ensureHttps } from '@/lib/utils/network/url';
 import { formatDate } from '@/lib/utils/formatting/date';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertCircle, ArrowLeft } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Pencil, Check, X, RefreshCw, Download } from 'lucide-react';
 import { Loader } from '@/components/ui/loader';
 import { useBriefOperations } from '@/hooks/useBriefOperations';
+import { Input } from '@/components/ui/input';
+import toast from 'react-hot-toast';
+import { useLLM } from '@/lib/llm/use-llm';
+import { generateBrief, updateBriefWithGeneratedContent } from '@/lib/brief/generateBrief';
+import { DeleteConfirmationDialog } from '@/components/common/DeleteConfirmationDialog';
+import { RegenerateConfirmationDialog } from '@/components/common/RegenerateConfirmationDialog';
+import { ExportFormatDialog } from '@/components/brief/ExportFormatDialog';
+import { exportBrief } from '@/lib/utils/export/briefExport';
+import type { ExportFormat } from '@/lib/utils/export/briefExport';
 
 const BriefPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [brief, setBrief] = useState<Brief | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRegenerating, setIsRegenerating] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('review');
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editedTitle, setEditedTitle] = useState('');
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [showRegenerateConfirmation, setShowRegenerateConfirmation] = useState(false);
+  const [showExportDialog, setShowExportDialog] = useState(false);
 
   // Get brief operations helpers
   const { handleEditBrief } = useBriefOperations();
+  // Get LLM functionality for regeneration
+  const { completeWithAI } = useLLM();
 
   useEffect(() => {
     const loadBrief = async () => {
@@ -51,35 +69,28 @@ const BriefPage: React.FC = () => {
   }, [id]);
 
   const handleExport = () => {
+    setShowExportDialog(true);
+  };
+
+  const handleExportFormat = async (format: ExportFormat) => {
     if (!brief) return;
-
-    // Create a blob with the brief content
-    const blob = new Blob([
-      `# ${brief.title}\n\n`,
-      `Generated on: ${formatDate(brief.date)}\n\n`,
-      brief.review || 'No review content available.',
-      '\n\n## References\n\n',
-      brief.references.map((ref, index) => 
-        `[${index + 1}] ${ref.text}`
-      ).join('\n\n'),
-      '\n\n## BibTeX\n\n```\n',
-      brief.bibtex || 'No BibTeX available.',
-      '\n```'
-    ], { type: 'text/markdown' });
-
-    // Create a download link and trigger it
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${brief.title.replace(/\s+/g, '_')}.md`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    
+    setIsExporting(true);
+    setShowExportDialog(false);
+    
+    try {
+      await exportBrief(brief, format);
+      toast.success(`Brief exported to ${format.toUpperCase()} successfully`);
+    } catch (error) {
+      console.error(`Error exporting to ${format}:`, error);
+      toast.error(`Failed to export brief to ${format}`);
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const handleDelete = async () => {
-    if (!id || !window.confirm('Are you sure you want to delete this brief?')) return;
+    if (!id) return;
 
     try {
       await BriefOperations.delete(id);
@@ -90,12 +101,94 @@ const BriefPage: React.FC = () => {
     }
   };
 
+  const confirmDelete = () => {
+    setShowDeleteConfirmation(true);
+  };
+
   const handleViewPdf = (pdfUrl: string) => {
     if (pdfUrl) {
       window.open(ensureHttps(pdfUrl), '_blank');
     } else {
       alert('PDF URL not available for this reference.');
     }
+  };
+
+  const handleStartEditingTitle = () => {
+    if (brief) {
+      setEditedTitle(brief.title);
+      setIsEditingTitle(true);
+    }
+  };
+
+  const handleSaveTitle = async () => {
+    if (!brief || !id || !editedTitle.trim()) return;
+
+    try {
+      await BriefOperations.update(id, {
+        title: editedTitle.trim(),
+        updatedAt: new Date()
+      });
+      
+      setBrief({
+        ...brief,
+        title: editedTitle.trim(),
+        updatedAt: new Date()
+      });
+      
+      setIsEditingTitle(false);
+      toast.success('Title updated successfully');
+    } catch (error) {
+      console.error('Error updating title:', error);
+      toast.error('Failed to update title');
+    }
+  };
+
+  const handleCancelEditTitle = () => {
+    setIsEditingTitle(false);
+    if (brief) {
+      setEditedTitle(brief.title);
+    }
+  };
+
+  // Handle regenerating the brief
+  const handleRegenerateBrief = async () => {
+    if (!brief || !id) return;
+    
+    setIsRegenerating(true);
+    
+    try {
+      // Use the shared utility function to generate the brief
+      const result = await generateBrief(brief, completeWithAI);
+      
+      if (result.success && result.content && result.bibtex) {
+        // Use the shared utility function to update the brief with generated content
+        // Pass 'regenerate' to indicate this is a regeneration workflow
+        const success = await updateBriefWithGeneratedContent(id, result.content, result.bibtex, 'regenerate');
+        
+        if (success) {
+          // Update the local brief state to reflect changes
+          setBrief({
+            ...brief,
+            review: result.content,
+            bibtex: result.bibtex,
+            updatedAt: new Date()
+          });
+          
+          // Ensure we're on the review tab to see the new content
+          setActiveTab('review');
+        }
+      }
+    } catch (error) {
+      console.error('Error regenerating brief:', error);
+      // Toast error is handled in the updateBriefWithGeneratedContent function
+    } finally {
+      setIsRegenerating(false);
+      setShowRegenerateConfirmation(false);
+    }
+  };
+
+  const confirmRegenerate = () => {
+    setShowRegenerateConfirmation(true);
   };
 
   if (isLoading) {
@@ -166,31 +259,112 @@ const BriefPage: React.FC = () => {
             <ArrowLeft className="h-4 w-4 mr-1" />
             Back to Briefs
           </Button>
-          
-          <Button 
-            variant="outline"
-            size="sm"
-            onClick={() => id && handleEditBrief(id)}
-          >
-            Edit Brief
-          </Button>
         </div>
       </div>
       <Card className="border shadow-sm w-full">
         <CardHeader className="pb-4">
           <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
-            <div>
-              <CardTitle className="text-2xl font-bold">{brief.title}</CardTitle>
+            <div className="flex-grow">
+              <div className="flex items-center gap-2">
+                {isEditingTitle ? (
+                  <div className="flex items-center gap-2 w-full max-w-2xl">
+                    <Input
+                      value={editedTitle}
+                      onChange={(e) => setEditedTitle(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleSaveTitle();
+                        } else if (e.key === 'Escape') {
+                          handleCancelEditTitle();
+                        }
+                      }}
+                      className="text-2xl font-bold py-1 px-2"
+                      autoFocus
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleSaveTitle}
+                      className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                    >
+                      <Check className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleCancelEditTitle}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <CardTitle className="text-2xl font-bold">{brief.title}</CardTitle>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleStartEditingTitle}
+                      className="text-muted-foreground hover:text-foreground p-1 h-auto"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                  </>
+                )}
+              </div>
               <CardDescription className="text-muted-foreground mt-1">
                 Generated on {formatDate(brief.date)} • 
                 Based on {brief.references.length} paper{brief.references.length !== 1 ? 's' : ''}
               </CardDescription>
             </div>
             <div className="flex gap-2 self-start">
-              <Button variant="outline" onClick={handleExport} size="sm">
-                Export
+              <Button 
+                variant="outline"
+                size="sm"
+                onClick={() => id && handleEditBrief(id)}
+              >
+                Edit
               </Button>
-              <Button variant="destructive" onClick={handleDelete} size="sm">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={confirmRegenerate}
+                disabled={isRegenerating}
+                className="flex items-center gap-1"
+              >
+                {isRegenerating ? (
+                  <>
+                    <Loader className="h-3 w-3 mr-1" />
+                    Regenerating...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-3 w-3 mr-1" />
+                    Regenerate
+                  </>
+                )}
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={handleExport} 
+                size="sm"
+                disabled={isExporting}
+                className="flex items-center gap-1"
+              >
+                {isExporting ? (
+                  <>
+                    <Loader className="h-3 w-3 mr-1" />
+                    Exporting...
+                  </>
+                ) : (
+                  <>
+                    <Download className="h-3 w-3 mr-1" />
+                    Export
+                  </>
+                )}
+              </Button>
+              <Button variant="destructive" onClick={confirmDelete} size="sm">
                 Delete
               </Button>
             </div>
@@ -204,10 +378,10 @@ const BriefPage: React.FC = () => {
               {brief.bibtex && <TabsTrigger value="bibtex">BibTeX</TabsTrigger>}
             </TabsList>
             
-            <TabsContent value="review" className="prose prose-sm sm:prose lg:prose-lg dark:prose-invert">
+            <TabsContent value="review" className="prose prose-sm sm:prose lg:prose-lg dark:prose-invert max-w-none">
               {brief.review ? (
                 <div className="bg-card border rounded-md p-4 mb-4">
-                  <ReactMarkdown>
+                  <ReactMarkdown className="markdown-content">
                     {brief.review}
                   </ReactMarkdown>
                 </div>
@@ -264,6 +438,30 @@ const BriefPage: React.FC = () => {
           </div>
         </CardFooter>
       </Card>
+
+      {/* Confirmation dialogs */}
+      <DeleteConfirmationDialog
+        open={showDeleteConfirmation}
+        onOpenChange={setShowDeleteConfirmation}
+        title="Delete Brief"
+        description="Are you sure you want to delete this brief? This action cannot be undone."
+        onConfirm={handleDelete}
+      />
+      
+      <RegenerateConfirmationDialog
+        open={showRegenerateConfirmation}
+        onOpenChange={setShowRegenerateConfirmation}
+        title="Regenerate Brief"
+        description="Are you sure you want to regenerate this brief? This will replace the current content with a new AI-generated review."
+        onConfirm={handleRegenerateBrief}
+      />
+
+      {/* Export format dialog */}
+      <ExportFormatDialog
+        open={showExportDialog}
+        onOpenChange={setShowExportDialog}
+        onSelectFormat={handleExportFormat}
+      />
     </div>
   );
 };

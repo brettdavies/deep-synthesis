@@ -5,7 +5,7 @@ export * from './registry';
 // Import steps
 import { QueryStep } from './QueryStep';
 import { RefinementStep } from './RefinementStep';
-import { PaperSearchStep } from './PaperSearchStep';
+import { PaperSearchStep } from './paper-search';
 import { BriefGenerationStep } from './BriefGenerationStep';
 import { registerStep } from './registry';
 

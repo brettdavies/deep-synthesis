@@ -16,11 +16,11 @@ export function EmptyState({ type, onActionClick }: EmptyStateProps) {
   
   const message = type === 'papers'
     ? 'Start by finding papers for your research topic.'
-    : 'Start by generating a brief from your papers.';
+    : 'Start by generating a brief from your research topic.';
   
   const buttonText = type === 'papers'
     ? 'Find Papers'
-    : 'Create Brief';
+    : 'Start a New Brief';
   
   const Icon = type === 'papers' ? File : FileText;
 

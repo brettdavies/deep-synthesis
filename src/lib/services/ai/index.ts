@@ -12,4 +12,6 @@ export {
   generateReview,
   generateBibTeX,
   getAvailableProviders
-} from './operations'; 
+} from './operations';
+
+export { MessageType, sendMessage } from './messageService'; 
