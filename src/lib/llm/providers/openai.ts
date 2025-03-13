@@ -104,13 +104,17 @@ export class OpenAIProvider extends BaseLLMProvider {
       max_completion_tokens?: number;
       stream?: boolean;
       reasoning_effort?: string;
+      response_format?: {
+        type: string;
+        json_schema?: Record<string, any>;
+      };
     } = {
       model: request.model,
       messages: [{ role: 'user', content: request.prompt }],
     };
     
-    // Check if the model is o3-mini, which has different parameter support
-    const isO3Model = request.model.includes('o3-');
+    // Check if the model is o3-mini, which has different parameter support for temperature
+    const isO3Model = request.model === 'o3-mini';
     
     // Add optional parameters only if they're defined
     if (request.maxTokens) {
@@ -130,6 +134,31 @@ export class OpenAIProvider extends BaseLLMProvider {
     // The default is "medium", but can be set to "high" or "low"
     if (isO3Model) {
       payload.reasoning_effort = request.reasoningEffort || "medium";
+    }
+    
+    // Add response_format if provided - o3-mini does support this
+    if (request.responseFormat) {
+      console.log(`[OpenAI] Adding response_format to request:`, request.responseFormat);
+      payload.response_format = {
+        type: request.responseFormat.type
+      };
+      
+      // Add json_schema if it's a json_schema type
+      if (request.responseFormat.type === 'json_schema' && request.responseFormat.json_schema) {
+        // Ensure all required properties are present
+        if (!request.responseFormat.json_schema.name) {
+          console.warn('[OpenAI] Missing required json_schema.name property, using default');
+        }
+        
+        // We need to include all properties of json_schema, not just the schema itself
+        payload.response_format.json_schema = {
+          name: request.responseFormat.json_schema.name || 'default_schema',
+          strict: request.responseFormat.json_schema.strict ?? true,
+          schema: request.responseFormat.json_schema.schema || { type: 'object' }
+        };
+        
+        console.log('[OpenAI] Final json_schema:', payload.response_format.json_schema);
+      }
     }
     
     console.log(`[OpenAI] Request payload:`, JSON.stringify(payload, null, 2));

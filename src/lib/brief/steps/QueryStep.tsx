@@ -10,15 +10,21 @@ function QueryStepComponent({ briefId, onComplete }: StepProps) {
   // Use the shared step logic instead of direct useLiveQuery
   const { brief, isLoading, updateBrief } = useStepLogic(briefId);
   
-  // Local UI state for the input value
+  // Local UI state for the input values
   const [query, setQuery] = useState('');
+  const [title, setTitle] = useState('');
   
   // Update local state when brief data loads
   useEffect(() => {
     if (brief?.query) {
       setQuery(brief.query);
+      // Only set title if it's different from the truncated query
+      const truncatedQuery = brief.query.length > 50 ? brief.query.substring(0, 50) + '...' : brief.query;
+      if (brief.title !== truncatedQuery) {
+        setTitle(brief.title);
+      }
     }
-  }, [brief?.query]);
+  }, [brief?.query, brief?.title]);
   
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
@@ -29,10 +35,13 @@ function QueryStepComponent({ briefId, onComplete }: StepProps) {
       return;
     }
     
+    // Use the custom title if provided, otherwise use truncated query
+    const briefTitle = title.trim() || (query.length > 50 ? query.substring(0, 50) + '...' : query);
+    
     // Use the updateBrief helper from useStepLogic
     const success = await updateBrief({
       query: query.trim(),
-      title: query.length > 50 ? query.substring(0, 50) + '...' : query
+      title: briefTitle
     });
     
     if (success) {
@@ -54,17 +63,35 @@ function QueryStepComponent({ briefId, onComplete }: StepProps) {
       </p>
       
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="space-y-2">
-          <label htmlFor="query" className="text-sm font-medium">
-            Research Question
-          </label>
-          <Input
-            id="query"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="E.g., What are the recent advances in transformer architectures for NLP?"
-            className="w-full"
-          />
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <label htmlFor="query" className="text-sm font-medium">
+              Research Question
+            </label>
+            <Input
+              id="query"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="E.g., What are the recent advances in transformer architectures for NLP?"
+              className="w-full"
+            />
+          </div>
+          
+          <div className="space-y-2">
+            <label htmlFor="title" className="text-sm font-medium">
+              Brief Title <span className="text-muted-foreground">(optional)</span>
+            </label>
+            <Input
+              id="title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Enter a custom title for your brief"
+              className="w-full"
+            />
+            <p className="text-sm text-muted-foreground">
+              Leave blank to use the research question as the title
+            </p>
+          </div>
         </div>
         
         <div className="flex justify-end">

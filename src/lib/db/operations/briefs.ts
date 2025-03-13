@@ -238,6 +238,12 @@ export class BriefOperations {
           query: query,
           review: '', // Empty initially
           references: [], // Empty initially
+          searchQueries: [], // Empty initially
+          dateConstraint: { // Default date constraint
+            type: 'none',
+            beforeDate: null,
+            afterDate: null
+          },
           bibtex: '',
           date: new Date(),
           chatMessages: [],
@@ -272,10 +278,7 @@ export class BriefOperations {
    */
   static async updateWithRefinedQuery(briefId: string, refinedQuery: string): Promise<boolean> {
     return await db.transaction('rw', db.briefs, async () => {
-      const briefTitle = refinedQuery.length > 50 ? refinedQuery.substring(0, 50) + '...' : refinedQuery;
-      
       const updates = {
-        title: briefTitle,
         query: refinedQuery,
         updatedAt: new Date()
       };
@@ -352,11 +355,8 @@ export class BriefOperations {
         updatedAt: new Date()
       };
       
-      // Update title if refined query is provided
+      // Update query if provided, but not the title
       if (refinedQuery) {
-        updates.title = refinedQuery.length > 50 
-          ? refinedQuery.substring(0, 50) + '...' 
-          : refinedQuery;
         updates.query = refinedQuery;
       }
       
@@ -365,7 +365,6 @@ export class BriefOperations {
       console.log('[DB Operation] Finalized brief with content:', { 
         briefId,
         contentLength: content.length,
-        updatedTitle: updates.title,
         success: count > 0
       });
       

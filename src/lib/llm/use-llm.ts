@@ -85,6 +85,7 @@ export function useLLM() {
    * @param {number} [options.maxTokens] - Maximum tokens to generate
    * @param {boolean} [options.stream] - Whether to stream the response
    * @param {'high'|'medium'|'low'} [options.reasoningEffort] - Reasoning effort for o3 models
+   * @param {Object} [options.responseFormat] - Response format configuration
    * @returns {Promise<LLMResponse>} The LLM's response
    * @throws {Error} If no API key is configured or the request fails
    */
@@ -96,6 +97,14 @@ export function useLLM() {
       maxTokens?: number;
       stream?: boolean;
       reasoningEffort?: 'high' | 'medium' | 'low';
+      responseFormat?: {
+        type: 'json_object' | 'json_schema';
+        json_schema?: {
+          name: string;
+          strict: boolean;
+          schema: Record<string, any>;
+        };
+      };
     }
   ): Promise<LLMResponse> => {
     setLoading(true);
@@ -116,6 +125,7 @@ export function useLLM() {
         maxTokens: options?.maxTokens,
         stream: options?.stream,
         reasoningEffort: options?.reasoningEffort,
+        responseFormat: options?.responseFormat,
       };
 
       const response = await provider.chat(request);
@@ -317,5 +327,6 @@ export function useLLM() {
     getAvailableModels,
     getProviderSettings,
     getEnabledModels,
+    registry,
   };
 } 

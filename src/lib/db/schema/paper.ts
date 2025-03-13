@@ -7,6 +7,8 @@ export interface Paper {
   abstract: string;
   authors: string[];
   year: string;
+  submittedDate: string;   // Full submission date from arXiv
+  lastUpdatedDate?: string; // Last update date from arXiv
   abstractUrl: string;
   pdfUrl: string;
   pdfChunks?: {           // PDF stored in chunks
@@ -17,6 +19,20 @@ export interface Paper {
   pdfSize?: number;       // Total PDF size
   pdfDownloaded?: boolean; // Whether the PDF has been downloaded
   pdfDownloadProgress?: number; // Download progress (0-100)
+  
+  // ArXiv specific fields from XML
+  primaryCategory?: {     // Primary arXiv category
+    term: string;
+    scheme?: string;
+  };
+  categories?: Array<{    // All arXiv categories
+    term: string;
+    scheme?: string;
+  }>;
+  comments?: string;      // Author comments
+  journalRef?: string;    // Journal reference from arXiv
+  authorAffiliations?: string[]; // Author affiliations from arXiv
+  
   // Fields for data enrichment
   doi?: string;            // DOI if available
   journal?: string;        // Journal information if published
@@ -34,4 +50,4 @@ export interface Paper {
 
 export type PaperTable = Table<Paper>;
 
-export const PAPER_SCHEMA = 'id, arxivId, title, abstract, authors, year, abstractUrl, pdfDownloaded, pdfSize, doi, bibtex, source, lastEnriched, createdAt, updatedAt, *pdfChunks'; 
+export const PAPER_SCHEMA = 'id, arxivId, title, abstract, authors, year, submittedDate, lastUpdatedDate, abstractUrl, pdfDownloaded, pdfSize, doi, bibtex, source, lastEnriched, createdAt, updatedAt, *pdfChunks, primaryCategory.term, *categories.term, comments, journalRef'; 

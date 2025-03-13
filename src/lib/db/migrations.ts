@@ -25,4 +25,15 @@ export function getMigrations(db: ResearchDB) {
       console.log(`Migration complete: Updated ${updatedBriefs.length} briefs with chatMessages field`);
     }
   });
+
+  // Add migration for version 4 to add compound index
+  db.addMigration(4, async (context: MigrationContext) => {
+    console.log('Running migration for version 4: Adding compound index [briefId+paperId] to paperBriefAssociations');
+    
+    if (context.oldVersion < 4) {
+      // The schema change will automatically create the new index
+      // We don't need to do anything with the data since the individual fields already exist
+      console.log('Migration complete: Added compound index [briefId+paperId] to paperBriefAssociations');
+    }
+  });
 } 

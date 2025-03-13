@@ -15,6 +15,8 @@ export const OPENAI_MODELS: ModelInfo[] = [
       streaming: true,
       functionCalling: true,
       vision: true,
+      structuredOutput: true,
+      jsonMode: true,
     },
     costPer1kTokens: {
       input: 0.01,
@@ -31,6 +33,8 @@ export const OPENAI_MODELS: ModelInfo[] = [
       streaming: true,
       functionCalling: true,
       vision: false,
+      structuredOutput: false,
+      jsonMode: true,
     },
     costPer1kTokens: {
       input: 0.0005,
@@ -47,6 +51,8 @@ export const OPENAI_MODELS: ModelInfo[] = [
       streaming: true,
       functionCalling: true,
       vision: false,
+      structuredOutput: false,
+      jsonMode: true,
     },
     costPer1kTokens: {
       input: 0.03,
@@ -63,6 +69,8 @@ export const OPENAI_MODELS: ModelInfo[] = [
       streaming: true,
       functionCalling: true,
       vision: true,
+      structuredOutput: false,
+      jsonMode: true,
     },
     costPer1kTokens: {
       input: 0.01,
@@ -79,6 +87,8 @@ export const OPENAI_MODELS: ModelInfo[] = [
       streaming: true,
       functionCalling: true,
       vision: true,
+      structuredOutput: true,
+      jsonMode: true,
     },
     costPer1kTokens: {
       input: 0.01,
@@ -95,6 +105,8 @@ export const OPENAI_MODELS: ModelInfo[] = [
       streaming: true,
       functionCalling: true,
       vision: true,
+      structuredOutput: true,
+      jsonMode: true,
     },
     costPer1kTokens: {
       input: 0.01,
@@ -111,6 +123,8 @@ export const OPENAI_MODELS: ModelInfo[] = [
       streaming: true,
       functionCalling: true,
       vision: true,
+      structuredOutput: true,
+      jsonMode: true,
     },
     costPer1kTokens: {
       input: 0.00025,
@@ -127,6 +141,8 @@ export const OPENAI_MODELS: ModelInfo[] = [
       streaming: true,
       functionCalling: true,
       vision: true,
+      structuredOutput: true,
+      jsonMode: true,
     },
     costPer1kTokens: {
       input: 0.03,
@@ -143,6 +159,8 @@ export const OPENAI_MODELS: ModelInfo[] = [
       streaming: true,
       functionCalling: true,
       vision: true,
+      structuredOutput: true,
+      jsonMode: true,
     },
     costPer1kTokens: {
       input: 0.005,
@@ -159,6 +177,8 @@ export const OPENAI_MODELS: ModelInfo[] = [
       streaming: true,
       functionCalling: true,
       vision: true,
+      structuredOutput: true,
+      jsonMode: true,
     },
     costPer1kTokens: {
       input: 0.03,
@@ -175,6 +195,8 @@ export const OPENAI_MODELS: ModelInfo[] = [
       streaming: true,
       functionCalling: true,
       vision: true,
+      structuredOutput: true,
+      jsonMode: true,
     },
     costPer1kTokens: {
       input: 0.01,
