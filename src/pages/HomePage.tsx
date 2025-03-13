@@ -52,7 +52,7 @@ const HomePage: React.FC = () => {
             </CardHeader>
             <CardContent>
               <p className="text-gray-600 dark:text-gray-300">
-                Your papers and briefs are stored locally in your browser using IndexedDB. No data is sent to external servers, ensuring complete privacy for your research.
+                Your papers and briefs are stored locally in your browser using IndexedDB. Only data you send to the AI leaves your device. No tracking or telemetry is sent to external servers, ensuring complete privacy for your research.
               </p>
             </CardContent>
           </Card>

@@ -116,6 +116,7 @@ const SidebarNav: React.FC = () => {
           Settings
         </Link>
         
+        {/* Help link commented out temporarily
         <Link 
           to="/help" 
           className="nav-link"
@@ -124,6 +125,7 @@ const SidebarNav: React.FC = () => {
           <FontAwesomeIcon icon={faQuestionCircle} className="nav-icon" />
           Help
         </Link>
+        */}
       </div>
     </nav>
   );
