@@ -30,7 +30,9 @@ function RefinementStepComponent({ briefId, onComplete, onBack }: StepProps) {
   
   // Initialize chat messages from brief or set a system message
   useEffect(() => {
-    if (brief?.chatMessages && brief.chatMessages.length > 0) {
+    if (!brief) return;
+    
+    if (brief.chatMessages && brief.chatMessages.length > 0) {
       console.log('[RefinementStep] Loading existing chat messages:', {
         messageCount: brief.chatMessages.length
       });
@@ -50,75 +52,71 @@ function RefinementStepComponent({ briefId, onComplete, onBack }: StepProps) {
       } else {
         setRefinedQuery(brief.query);
       }
-    } else if (brief?.query) {
-      console.log('[RefinementStep] No chat messages found, creating initial AI message for query:', {
-        query: brief.query
-      });
-      
-      // Initial state with query but no messages
-      setRefinedQuery(brief.query);
-      
-      // No existing messages but we have a query, set an initial message
-      const initialMessage: ChatMessage = {
-        id: `ai-${Date.now()}`,
-        role: 'ai',
-        content: '',  // Will be filled below
-        timestamp: new Date()
-      };
-
-      // Immediately initiate AI conversation when component mounts
-      (async () => {
-        try {
-          setIsLoading(true);
-          setIsAiResponding(true);
-          const prompt = getInitialPrompt(brief.query);
-          const response = await completeWithAI('openai', prompt, { temperature: 0.7 });
-          
-          // Extract suggested query if present
-          const queryMatch = response.content.match(/REFINED QUERY:\s*(.+?)(?=\n\n|\n$|$)/i);
-          if (queryMatch && queryMatch[1]) {
-            const extractedQuery = queryMatch[1].trim();
-            setRefinedQuery(extractedQuery);
-          }
-          
-          initialMessage.content = response.content;
-          setMessages([initialMessage]);
-          
-          // Also save it to the database so it persists
-          console.log('[RefinementStep] Saving initial AI message to database:', {
-            initialMessage,
-            briefId
-          });
-          
-          // Make sure we're passing a clean ChatMessage without any extra properties
-          const cleanMessage: ChatMessage = {
-            id: initialMessage.id,
-            role: initialMessage.role,
-            content: initialMessage.content,
-            timestamp: initialMessage.timestamp
-          };
-          
-          await updateBrief({ 
-            chatMessages: [cleanMessage] 
-          });
-          
-        } catch (error) {
-          handleError(error);
-          // Provide a fallback message in the UI only (not saved to DB)
-          const errorMessage: ChatMessageDisplay = {
-            id: `error-${Date.now()}`,
-            role: 'ai',
-            content: "I encountered an issue connecting to the AI service. Please try refreshing the page or start the conversation with your additional details.",
-            timestamp: new Date(),
-          };
-          setMessages([errorMessage]);
-        } finally {
-          setIsLoading(false);
-          setIsAiResponding(false);
-        }
-      })();
+      return;
     }
-  }, [brief, updateBrief]);
+    
+    // No existing messages but we have a query, set an initial message
+    console.log('[RefinementStep] No chat messages found, creating initial AI message for query:', {
+      query: brief.query
+    });
+    
+    // Initial state with query but no messages
+    setRefinedQuery(brief.query);
+    
+    // No existing messages but we have a query, set an initial message
+    const initialMessage: ChatMessage = {
+      id: `ai-${Date.now()}`,
+      role: 'ai',
+      content: '',  // Will be filled below
+      timestamp: new Date()
+    };
+
+    // Immediately initiate AI conversation when component mounts
+    (async () => {
+      try {
+        setIsLoading(true);
+        setIsAiResponding(true);
+        const prompt = getInitialPrompt(brief.query);
+        const response = await completeWithAI('openai', prompt, { temperature: 0.7 });
+        
+        // Extract suggested query if present
+        const queryMatch = response.content.match(/REFINED QUERY:\s*(.+?)(?=\n\n|\n$|$)/i);
+        if (queryMatch && queryMatch[1]) {
+          const extractedQuery = queryMatch[1].trim();
+          setRefinedQuery(extractedQuery);
+        }
+        
+        initialMessage.content = response.content;
+        setMessages([initialMessage]);
+        
+        // Also save it to the database so it persists
+        console.log('[RefinementStep] Saving initial AI message to database:', {
+          initialMessage,
+          briefId
+        });
+        
+        // Make sure we're passing a clean ChatMessage without any extra properties
+        await BriefOperations.addChatMessage(briefId, {
+          role: initialMessage.role,
+          content: initialMessage.content
+        });
+        
+      } catch (error) {
+        handleError(error);
+        // Provide a fallback message in the UI only (not saved to DB)
+        const errorMessage: ChatMessageDisplay = {
+          id: `error-${Date.now()}`,
+          role: 'ai',
+          content: "I encountered an issue connecting to the AI service. Please try refreshing the page or start the conversation with your additional details.",
+          timestamp: new Date(),
+        };
+        setMessages([errorMessage]);
+      } finally {
+        setIsLoading(false);
+        setIsAiResponding(false);
+      }
+    })();
+  }, [brief, briefId]);
   
   // Scroll to bottom of messages when they change
   useEffect(() => {
@@ -175,8 +173,9 @@ function RefinementStepComponent({ briefId, onComplete, onBack }: StepProps) {
         briefId
       });
       
-      await updateBrief({ 
-        chatMessages: updatedMessages 
+      await BriefOperations.addChatMessage(briefId, {
+        role: userMsg.role,
+        content: userMsg.content
       });
       
       // Prepare conversation history for the prompt
@@ -204,22 +203,10 @@ function RefinementStepComponent({ briefId, onComplete, onBack }: StepProps) {
       // Replace pending message with real one
       setMessages(prev => [...prev.filter(m => !m.pending), aiMsg]);
       
-      // Update brief with the new messages including AI response
-      const finalMessages = [...updatedMessages, aiMsg];
-      
-      console.log('[RefinementStep] Saving AI response to database:', {
-        finalMessages,
-        briefId,
-        messageCount: finalMessages.length
-      });
-      
-      // Ensure we're working with valid ChatMessage objects without the pending property
-      const cleanMessages = finalMessages.map(({ id, role, content, timestamp }) => ({
-        id, role, content, timestamp
-      }));
-      
-      await updateBrief({
-        chatMessages: cleanMessages
+      // Add AI message to database
+      await BriefOperations.addChatMessage(briefId, {
+        role: aiMsg.role,
+        content: aiMsg.content
       });
       
     } catch (error) {
@@ -250,37 +237,28 @@ function RefinementStepComponent({ briefId, onComplete, onBack }: StepProps) {
       return;
     }
     
-    // Create a system message to mark the step as completed
-    const completionMessage: ChatMessage = {
-      id: `system-${Date.now()}`,
-      role: 'ai', // Using 'ai' role for compatibility 
-      content: `__REFINEMENT_COMPLETE__: User saved refined query: "${refinedQuery.trim()}"`,
-      timestamp: new Date()
-    };
-    
-    // Get existing messages or empty array
-    const existingMessages = brief?.chatMessages || [];
-    
-    // Only add the completion message if it doesn't exist already
-    const hasCompletionMessage = existingMessages.some(msg => 
-      msg.content.includes('__REFINEMENT_COMPLETE__')
-    );
-    
-    // Update the chat messages with our completion marker
-    const updatedMessages = hasCompletionMessage 
-      ? existingMessages 
-      : [...existingMessages, completionMessage];
-    
-    // Save both the refined query and updated chat messages
-    const success = await updateBrief({
-      query: refinedQuery.trim(),
-      title: refinedQuery.length > 50 ? refinedQuery.substring(0, 50) + '...' : refinedQuery,
-      chatMessages: updatedMessages
-    });
-    
-    if (success) {
-      toast.success("Refined query saved");
-      onComplete();
+    try {
+      // Create a system message to mark the step as completed
+      const completionMessage = {
+        role: 'ai', // Using 'ai' role for compatibility 
+        content: `__REFINEMENT_COMPLETE__: User saved refined query: "${refinedQuery.trim()}"`
+      };
+      
+      // Add the completion message
+      await BriefOperations.addChatMessage(briefId, completionMessage);
+      
+      // Save the refined query
+      const success = await updateBrief({
+        query: refinedQuery.trim(),
+        title: refinedQuery.length > 50 ? refinedQuery.substring(0, 50) + '...' : refinedQuery
+      });
+      
+      if (success) {
+        toast.success("Refined query saved");
+        onComplete();
+      }
+    } catch (error) {
+      handleError(error);
     }
   };
   

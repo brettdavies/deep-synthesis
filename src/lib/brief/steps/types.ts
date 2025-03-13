@@ -1,7 +1,7 @@
 import type { Brief } from '@/lib/db/schema/brief';
+import type { NavigationStep } from '@/lib/utils/navigation';
 
-export interface BriefEditStep {
-  id: string;                  // Unique identifier
+export interface BriefEditStep extends NavigationStep {
   title: string;               // Display name
   description: string;         // Brief description
   component: React.FC<StepProps>; // The component to render
